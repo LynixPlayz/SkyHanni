@@ -8,6 +8,7 @@ import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
 import at.hannibal2.skyhanni.events.ReceiveParticleEvent
 import at.hannibal2.skyhanni.features.inventory.chocolatefactory.ChocolateFactoryAPI
 import at.hannibal2.skyhanni.test.GriffinUtils.drawWaypointFilled
+import at.hannibal2.skyhanni.utils.EntityUtils
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.LorenzColor
@@ -21,6 +22,7 @@ import at.hannibal2.skyhanni.utils.RenderUtils.drawDynamicText
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import net.minecraft.item.ItemStack
 import net.minecraft.util.EnumParticleTypes
+import net.minecraft.entity.item.EntityArmorStand
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
@@ -99,12 +101,15 @@ object HoppityEggLocator {
 
         val islandEggsLocations = getCurrentIslandEggLocations() ?: return
         for (eggLocation in islandEggsLocations) {
+            val isThere = (EntityUtils.getEntitiesNearby<EntityArmorStand>(eggLocation, 2.5).count() >= 1)
+            val color = if(isThere) LorenzColor.RED.toColor() else LorenzColor.GREEN.toColor()
+            val textColor = if(isThere) "§c" else "§a"
             event.drawWaypointFilled(
                 eggLocation,
-                LorenzColor.GREEN.toColor(),
+                color,
                 seeThroughBlocks = true,
             )
-            event.drawDynamicText(eggLocation.add(y = 1), "§aEgg", 1.5)
+            event.drawDynamicText(eggLocation.add(y = 1), textColor + "Egg", 1.5)
         }
     }
 
