@@ -4,6 +4,7 @@ import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.events.ReceiveParticleEvent
 import at.hannibal2.skyhanni.features.rift.RiftAPI
+import at.hannibal2.skyhanni.utils.BlockUtils
 import at.hannibal2.skyhanni.utils.BlockUtils.getBlockAt
 import at.hannibal2.skyhanni.utils.CollectionUtils.editCopy
 import at.hannibal2.skyhanni.utils.InventoryUtils
@@ -15,6 +16,7 @@ import at.hannibal2.skyhanni.utils.RenderUtils.draw3DLine
 import at.hannibal2.skyhanni.utils.RenderUtils.drawDynamicText
 import at.hannibal2.skyhanni.utils.RenderUtils.drawFilledBoundingBox_nea
 import at.hannibal2.skyhanni.utils.RenderUtils.expandBlock
+import at.hannibal2.skyhanni.utils.toLorenzVec
 import net.minecraft.client.Minecraft
 import net.minecraft.init.Blocks
 import net.minecraft.util.EnumParticleTypes
@@ -123,6 +125,14 @@ class RiftWiltedBerberisHelper {
                     previous?.fixLocation(berberis)?.let {
                         event.drawFilledBoundingBox_nea(axisAlignedBB(it), Color.LIGHT_GRAY, 0.2f)
                         event.draw3DLine(it.add(0.5, 0.0, 0.5), location.add(0.5, 0.0, 0.5), Color.WHITE, 3, false)
+                        event.draw3DLine(it.add(0.5, 0.0, 0.5), location.add(0.5, 0.0, 0.5), Color.MAGENTA, 3, false)
+                        println((location.add(0.5, 0.0, 0.5) - it.add(0.5, 0.0, 0.5)).normalize())
+                        for(pos in BlockUtils.traceRay(it.add(0.5, 0.5, 0.5), (location.add(0.5, 0.0, 0.5) - it.add(0.5, 0.0, 0.5)).normalize(), 25.0)) {
+                            println(Minecraft.getMinecraft().theWorld.getBlockState(pos).block)
+                            if(Minecraft.getMinecraft().theWorld.getBlockState(pos).block == Blocks.deadbush) {
+                                event.drawFilledBoundingBox_nea(axisAlignedBB(pos.toLorenzVec()), Color.RED, 0.5f)
+                            }
+                        }
                     }
                 }
             }
