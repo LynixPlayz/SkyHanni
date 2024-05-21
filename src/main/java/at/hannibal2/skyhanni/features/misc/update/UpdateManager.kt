@@ -132,7 +132,7 @@ object UpdateManager {
     }
 
     private val context = UpdateContext(
-        UpdateSource.githubUpdateSource("hannibal002", "SkyHanni"),
+        UpdateSource.githubUpdateSource("LynixPlayz", "SkyHanni"),
         UpdateTarget.deleteAndSaveInTheSameFolder(UpdateManager::class.java),
         object : CurrentVersion {
             val normalDelegate = CurrentVersion.ofTag(SkyHanniMod.version)
