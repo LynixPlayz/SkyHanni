@@ -32,12 +32,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 
+      - name: Build with Gradle
+        run: ./gradlew build -x test --stacktrace
+        
       - name: Get Build Filename
         id: getfilename
         run: echo "::set-output name=file::$(ls build/libs/skyhanni-*.jar)"
-
-      - name: Build with Gradle
-        run: ./gradlew build -x test --stacktrace
 
       - uses: actions/upload-artifact@v3
         name: Upload development build
