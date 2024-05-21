@@ -35,14 +35,11 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test --stacktrace
 
-      - name: Create directory for JAR
-        run: mkdir -p build/libs
-
       - uses: actions/upload-artifact@v3
         name: Upload development build
         with:
           name: "Development Build"
-          path: ./build/libs/*.jar
+          path: a.jar
 
       - name: Test with Gradle
         run: ./gradlew test
@@ -71,6 +68,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/libs/*.jar
+          asset_path: a.jar
           asset_name: ${{ github.sha }}.jar
           asset_content_type: application/java-archive
