@@ -35,6 +35,9 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test --stacktrace
 
+      - name: Create directory for JAR
+        run: mkdir -p build/libs
+
       - uses: actions/upload-artifact@v3
         name: Upload development build
         with:
