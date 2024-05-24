@@ -65,33 +65,22 @@ class RiftWiltedBerberisHelper {
 
     @SubscribeEvent
     fun onBlockClick(event: BlockClickEvent) {
-        println("Block Clicked")
         if (!isEnabled()) return
-        println("1")
         if (!hasFarmingToolInHand) return
-        println("2")
 
         val location = event.position
-        println("3")
         val berberis = nearestBerberis(location)
-        println("4")
 
         if (event.clickType == ClickType.LEFT_CLICK) {
-            println("5")
             if (berberis == null) {
-                println("6")
                 list = list.editCopy { add(WiltedBerberis(location)) }
                 println("added wilted berberis")
                 return
             }
 
             with(berberis) {
-                println("7")
-                previous = location
                 if (moving) {
-                    println("8")
-                    list = list.editCopy { add(WiltedBerberis(location)) }
-                    println("added wilted berberis")
+                    previous = location
                 }
             }
         }
