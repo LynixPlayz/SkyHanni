@@ -47,7 +47,6 @@ object TrevorSolver {
     }
 
     fun findMob() {
-        var canSee = false
         Minecraft.getMinecraft().theWorld ?: return
         for (entity in EntityUtils.getAllEntities()) {
             if (entity is EntityOtherPlayerMP) continue
@@ -59,14 +58,11 @@ object TrevorSolver {
                     val dist = entity.position.toLorenzVec().distanceToPlayer()
                     if ((currentMob == TrevorMob.RABBIT || currentMob == TrevorMob.SHEEP) && mobLocation == TrapperMobArea.OASIS) return
 
-                    canSee = entity.canBeSeen() && dist < currentMob!!.renderDistance
-                    if (canSee) {
-                        if (mobLocation != TrapperMobArea.FOUND) {
-                            LorenzUtils.sendTitle("§2Saw ${currentMob!!.mobName}!", 3.seconds)
-                        }
-                        mobLocation = TrapperMobArea.FOUND
-                        mobCoordinates = entity.position.toLorenzVec()
+                    if (mobLocation != TrapperMobArea.FOUND) {
+                        LorenzUtils.sendTitle("§2Saw ${currentMob!!.mobName}!", 3.seconds)
                     }
+                    mobLocation = TrapperMobArea.FOUND
+                    mobCoordinates = entity.position.toLorenzVec()
                 } else {
                     foundID = entity.entityId
                 }
