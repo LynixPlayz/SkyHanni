@@ -153,7 +153,7 @@ class RiftWiltedBerberisHelper {
                     previous?.fixLocation(berberis)?.let {
                         event.drawFilledBoundingBox_nea(axisAlignedBB(it), Color.LIGHT_GRAY, 0.2f)
                         event.draw3DLine(it.add(0.5, 0.0, 0.5), location.add(0.5, 0.0, 0.5), Color.WHITE, 3, false)
-                        for(pos in BlockUtils.traceRay(it.add(0.5, 0.5, 0.5), (location.add(0.5, 0.0, 0.5) - it.add(0.5, 0.0, 0.5)).normalize(), 25.0)) {
+                        for(pos in BlockUtils.traceRay(location.add(0.5, 0.5, 0.5), (location.add(0.5, 0.0, 0.5) - it.add(0.5, 0.0, 0.5)).normalize(), 25.0)) {
                             if(Minecraft.getMinecraft().theWorld.getBlockState(pos).block == Blocks.deadbush) {
                                 event.drawFilledBoundingBox_nea(axisAlignedBB(pos.toLorenzVec()), Color.RED, 0.5f)
                                 pos.toLorenzVec().let { it1 ->
