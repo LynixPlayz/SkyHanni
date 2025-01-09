@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.utils
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.EventHandler
 import at.hannibal2.skyhanni.config.ConfigGuiManager
 import at.hannibal2.skyhanni.config.HasLegacyId
 import at.hannibal2.skyhanni.events.LorenzEvent
@@ -65,15 +66,28 @@ object ConfigUtils {
         return JsonPrimitive(getEnumConstantFromLegacyId(element.asInt, enumClass)?.name)
     }
 
+    /**
+     * Migrates a Boolean to an Enum Constant.
+     *
+     * @param element The JsonElement to migrate
+     * @param trueValue The enum value it should map to if the value is true
+     * @param falseValue The enum value it should map to if the value is false
+     * @return The migrated JsonElement
+     */
+    fun <T : Enum<T>> migrateBooleanToEnum(element: JsonElement, trueValue: T, falseValue: T): JsonElement {
+        require(element is JsonPrimitive) { "Expected a JsonPrimitive but got ${element.javaClass.simpleName}" }
+        return JsonPrimitive(if (element.asBoolean) trueValue.name else falseValue.name)
+    }
+
     fun KMutableProperty0<*>.tryFindEditor(editor: MoulConfigEditor<*>): ProcessedOption? {
-        return editor.processedConfig.getOptionFromField(this.javaField ?: return null)
+        return editor.getOptionFromField(this.javaField ?: return null)
     }
 
     fun KMutableProperty0<*>.jumpToEditor() {
         if (tryJumpToEditor(ConfigGuiManager.getEditorInstance())) return
 
         // TODO create utils function "crashIfInDevEnv"
-        if (LorenzEvent.isInGuardedEventHandler) {
+        if (LorenzEvent.isInGuardedEventHandler || EventHandler.isInEventHandler) {
             throw Error("can not jump to editor $name")
         }
         ErrorManager.logErrorStateWithData(

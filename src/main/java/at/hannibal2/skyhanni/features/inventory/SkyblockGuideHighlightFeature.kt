@@ -1,27 +1,29 @@
 package at.hannibal2.skyhanni.features.inventory
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.GuiContainerEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.events.LorenzToolTipEvent
-import at.hannibal2.skyhanni.utils.ChatUtils
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.ItemUtils.name
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.LorenzUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.anyMatches
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
-import at.hannibal2.skyhanni.utils.StringUtils.anyMatches
-import at.hannibal2.skyhanni.utils.StringUtils.matches
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import org.intellij.lang.annotations.Language
 
-val patternGroup = RepoPattern.group("skyblockguide.highlight")
+private val patternGroup = RepoPattern.group("skyblockguide.highlight")
 
-private const val keyPrefixInventory = "inventory"
-private const val keyPrefixCondition = "condition"
+private const val KEY_PREFIX_INVENTORY = "inventory"
+private const val KEY_PREFIX_CONDITION = "condition"
 
 class SkyblockGuideHighlightFeature private constructor(
     private val config: () -> Boolean,
@@ -43,8 +45,8 @@ class SkyblockGuideHighlightFeature private constructor(
         onTooltip: (LorenzToolTipEvent) -> Unit = {},
     ) : this(
         config,
-        patternGroup.pattern("$key.$keyPrefixInventory", inventory),
-        patternGroup.pattern("$key.$keyPrefixCondition", loreCondition),
+        patternGroup.pattern("$key.$KEY_PREFIX_INVENTORY", inventory),
+        patternGroup.pattern("$key.$KEY_PREFIX_CONDITION", loreCondition),
         onSlotClicked,
         onTooltip
     )
@@ -58,7 +60,7 @@ class SkyblockGuideHighlightFeature private constructor(
         onTooltip: (LorenzToolTipEvent) -> Unit = {},
     ) : this(
         config,
-        patternGroup.pattern("$key.$keyPrefixInventory", inventory),
+        patternGroup.pattern("$key.$KEY_PREFIX_INVENTORY", inventory),
         loreCondition,
         onSlotClicked,
         onTooltip
@@ -68,6 +70,7 @@ class SkyblockGuideHighlightFeature private constructor(
         objectList.add(this)
     }
 
+    @SkyHanniModule
     companion object {
 
         private val skyblockGuideConfig get() = SkyHanniMod.feature.inventory.skyblockGuideConfig
@@ -75,15 +78,17 @@ class SkyblockGuideHighlightFeature private constructor(
         private val objectList = mutableListOf<SkyblockGuideHighlightFeature>()
 
         private var activeObject: SkyblockGuideHighlightFeature? = null
-        private var missing = mutableSetOf<Int>()
+        private val missing = mutableSetOf<Int>()
 
         fun isEnabled() = LorenzUtils.inSkyBlock
         fun close() {
             activeObject = null
         }
 
-        @SubscribeEvent
-        fun onInventoryClose(event: InventoryCloseEvent) = close()
+        @HandleEvent
+        fun onInventoryClose(event: InventoryCloseEvent) {
+            close()
+        }
 
         @SubscribeEvent
         fun onSlotClick(event: GuiContainerEvent.SlotClickEvent) {
@@ -98,7 +103,8 @@ class SkyblockGuideHighlightFeature private constructor(
             if (!isEnabled()) return
             if (activeObject == null) return
 
-            event.gui.inventorySlots.inventorySlots.filter { missing.contains(it.slotNumber) }
+            event.gui.inventorySlots.inventorySlots
+                .filter { missing.contains(it.slotNumber) }
                 .forEach { it highlight LorenzColor.RED }
         }
 
@@ -110,8 +116,8 @@ class SkyblockGuideHighlightFeature private constructor(
             current.onTooltip.invoke(event)
         }
 
-        @SubscribeEvent
-        fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+        @HandleEvent
+        fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
             if (!isEnabled()) return
             val current =
                 objectList.firstOrNull { it.config.invoke() && it.inventoryPattern.matches(event.inventoryName) }
@@ -129,20 +135,20 @@ class SkyblockGuideHighlightFeature private constructor(
         }
 
         private val taskOnlyCompleteOncePattern =
-            patternGroup.pattern("$keyPrefixCondition.once", "§7§eThis task can only be completed once!")
-        private val xPattern = patternGroup.pattern("$keyPrefixCondition.x", "§c ?✖.*")
+            patternGroup.pattern("$KEY_PREFIX_CONDITION.once", "§7§eThis task can only be completed once!")
+        private val xPattern = patternGroup.pattern("$KEY_PREFIX_CONDITION.x", "§c ?✖.*")
         private val totalProgressPattern =
-            patternGroup.pattern("$keyPrefixCondition.total", "§7Total Progress: §3\\d{1,2}(?:\\.\\d)?%")
+            patternGroup.pattern("$KEY_PREFIX_CONDITION.total", "§7Total Progress: §3\\d{1,2}(?:\\.\\d)?%")
         private val categoryProgressPattern =
             patternGroup.pattern(
-                "$keyPrefixCondition.category",
+                "$KEY_PREFIX_CONDITION.category",
                 "§7Progress to Complete Category: §6\\d{1,2}(?:\\.\\d)?%"
             )
 
         private val openWikiOnClick: (GuiContainerEvent.SlotClickEvent) -> Unit = { event ->
             val internalName = event.item?.getInternalName()
             if (internalName != null) {
-                ChatUtils.sendCommandToServer("wiki ${internalName.asString()}")
+                HypixelCommands.wiki(internalName.asString())
             }
         }
 
@@ -172,7 +178,8 @@ class SkyblockGuideHighlightFeature private constructor(
                 "travel",
                 "Core ➜ Fast Travels Unlocked",
                 taskOnlyCompleteOncePattern,
-                { ChatUtils.sendCommandToServer("wiki MUSEUM_TRAVEL_SCROLL") }, // The items do not have proper internal names and using the fact that all travel scrolls lead to the same wiki page
+                // The items do not have proper internal names and using the fact that all travel scrolls lead to the same wiki page
+                { HypixelCommands.wiki("MUSEUM_TRAVEL_SCROLL") },
                 openWikiTooltip
             )
             SkyblockGuideHighlightFeature(
@@ -247,6 +254,7 @@ class SkyblockGuideHighlightFeature private constructor(
             SkyblockGuideHighlightFeature(
                 { skyblockGuideConfig.menuGuide }, "tasks.skill", "Skill Related Tasks", categoryProgressPattern
             )
+            @Suppress("MaxLineLength")
             SkyblockGuideHighlightFeature(
                 { skyblockGuideConfig.collectionGuide },
                 "collections",

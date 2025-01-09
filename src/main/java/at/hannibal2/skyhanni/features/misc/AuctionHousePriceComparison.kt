@@ -1,25 +1,30 @@
 package at.hannibal2.skyhanni.features.misc
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.events.GuiContainerEvent
+import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryOpenEvent
 import at.hannibal2.skyhanni.events.LorenzToolTipEvent
 import at.hannibal2.skyhanni.features.inventory.AuctionsHighlighter
 import at.hannibal2.skyhanni.features.misc.items.EstimatedItemValueCalculator
-import at.hannibal2.skyhanni.utils.ColorUtils.toChromaColor
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
 import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.SpecialColor.toSpecialColor
+import net.minecraft.client.player.inventory.ContainerLocalMenu
 import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import java.awt.Color
 
-class AuctionHousePriceComparison {
+@SkyHanniModule
+object AuctionHousePriceComparison {
 
     private val config get() = SkyHanniMod.feature.inventory.auctions.auctionsPriceComparison
 
@@ -28,11 +33,10 @@ class AuctionHousePriceComparison {
     private var worstPrice = 0L
     private var inInventory = false
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryOpen(event: InventoryOpenEvent) {
-        inInventory = false
-        if (!event.inventoryName.startsWith("Auctions")) return
-        inInventory = true
+        inInventory = event.inventoryName.startsWith("Auctions")
+        if (!inInventory) return
 
         bestPrice = 0L
         worstPrice = 0L
@@ -50,6 +54,11 @@ class AuctionHousePriceComparison {
             }
         }
         this.slotPriceMap = map
+    }
+
+    @HandleEvent
+    fun onInventoryClose(event: InventoryCloseEvent) {
+        inInventory = false
     }
 
     private fun MutableMap<Int, Long>.add(stack: ItemStack, binPrice: Long, slot: Int) {
@@ -74,11 +83,11 @@ class AuctionHousePriceComparison {
     fun onBackgroundDrawn(event: GuiContainerEvent.BackgroundDrawnEvent) {
         if (!isEnabled()) return
 
-        val good = config.good.toChromaColor()
-        val veryGood = config.veryGood.toChromaColor()
+        val good = config.good.toSpecialColor()
+        val veryGood = config.veryGood.toSpecialColor()
 
-        val bad = config.bad.toChromaColor()
-        val veryBad = config.veryBad.toChromaColor()
+        val bad = config.bad.toSpecialColor()
+        val veryBad = config.veryBad.toSpecialColor()
 
 
         for (slot in InventoryUtils.getItemsInOpenChest()) {
@@ -107,6 +116,7 @@ class AuctionHousePriceComparison {
         if (!isEnabled()) return
 
         val diff = slotPriceMap[event.slot.slotIndex] ?: return
+        if (event.slot.inventory !is ContainerLocalMenu) return
 
         event.toolTip.add("")
         if (diff >= 0) {
@@ -118,7 +128,7 @@ class AuctionHousePriceComparison {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(31, "inventory.auctionsPriceComparison", "inventory.auctions.auctionsPriceComparison")
     }

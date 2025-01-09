@@ -1,9 +1,11 @@
 package at.hannibal2.skyhanni.features.inventory
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.GuiContainerEvent
 import at.hannibal2.skyhanni.events.LorenzToolTipEvent
 import at.hannibal2.skyhanni.events.RepositoryReloadEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.InventoryUtils.getAllItems
 import at.hannibal2.skyhanni.utils.ItemUtils.name
@@ -18,7 +20,8 @@ import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.EventPriority
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
-class QuickCraftFeatures {
+@SkyHanniModule
+object QuickCraftFeatures {
 
     private val config get() = SkyHanniMod.feature.inventory
     private val quickCraftSlots = listOf(16, 25, 34)
@@ -27,7 +30,6 @@ class QuickCraftFeatures {
     enum class InventoryType(val inventoryName: String) {
         CRAFT_ITEM("Craft Item"),
         MORE_QUICK_CRAFT_OPTIONS("Quick Crafting"),
-        ;
     }
 
     private fun InventoryType.ignoreSlot(slotNumber: Int?): Boolean = when (this) {
@@ -35,7 +37,7 @@ class QuickCraftFeatures {
         InventoryType.MORE_QUICK_CRAFT_OPTIONS -> slotNumber !in 10..44
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRepoReload(event: RepositoryReloadEvent) {
         quickCraftableItems = event.getConstant<List<String>>("QuickCraftableItems")
     }
@@ -78,7 +80,7 @@ class QuickCraftFeatures {
 
         val clickedItem = event.slot?.stack ?: return
         if (!KeyboardManager.isModifierKeyDown() && needsQuickCraftConfirmation(clickedItem)) {
-            event.isCanceled = true
+            event.cancel()
         }
     }
 

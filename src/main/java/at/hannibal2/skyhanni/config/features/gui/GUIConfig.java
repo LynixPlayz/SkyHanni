@@ -36,7 +36,7 @@ public class GUIConfig {
     @Accordion
     public ChromaConfig chroma = new ChromaConfig();
 
-    @ConfigOption(name = "Edit GUI Locations", desc = "Change the position of SkyHanni's overlays.")
+    @ConfigOption(name = "Edit GUI Locations", desc = "Opens the Position Editor, allows changing the position of SkyHanni's overlays.")
     @ConfigEditorButton(buttonText = "Edit")
     public Runnable positions = () -> GuiEditManager.openGuiPositionEditor(true);
 
@@ -51,9 +51,25 @@ public class GUIConfig {
     public float globalScale = 1F;
 
     @Expose
+    @ConfigOption(name = "Time Format", desc = "Change SkyHanni to use 24h time instead of 12h time.")
+    @ConfigEditorBoolean
+    @FeatureToggle
+    public boolean timeFormat24h = false;
+
+    @Expose
     @ConfigOption(name = "Discord Rich Presence", desc = "")
     @Accordion
     public DiscordRPCConfig discordRPC = new DiscordRPCConfig();
+
+    @Expose
+    @ConfigOption(name = "Hotbar", desc = "Settings for adjusting the hotbar")
+    @Accordion
+    public HotbarConfig hotbar = new HotbarConfig();
+
+    @Expose
+    @ConfigOption(name = "Xp Bar", desc = "Settings for adjusting the xp bar")
+    @Accordion
+    public XPBarConfig xpBar = new XPBarConfig();
 
     @Expose
     @ConfigOption(name = "Marked Players", desc = "Players that got marked with §e/shmarkplayer§7.")
@@ -71,9 +87,29 @@ public class GUIConfig {
     public TextBoxConfig customTextBox = new TextBoxConfig();
 
     @Expose
+    @ConfigOption(name = "Tab Widget", desc = "")
+    @Accordion
+    public TabWidgetConfig tabWidget = new TabWidgetConfig();
+
+    @Expose
     @ConfigOption(name = "In-Game Date", desc = "")
     @Accordion
     public InGameDateConfig inGameDate = new InGameDateConfig();
+
+    @Expose
+    @ConfigOption(name = "Beacon Power", desc = "Display the current beacon power duration and what stat is boosted.")
+    @ConfigEditorBoolean
+    @FeatureToggle
+    public boolean beaconPower = false;
+
+    @Expose
+    @ConfigOption(name = "Show Beacon Stat", desc = "Show what stat is being boosted by your beacon.")
+    @ConfigEditorBoolean
+    public boolean beaconPowerStat = true;
+
+    @Expose
+    @ConfigLink(owner = GUIConfig.class, field = "beaconPower")
+    public Position beaconPowerPosition = new Position(10, 10);
 
     @Expose
     @ConfigOption(name = "Real Time", desc = "Display the current computer time, a handy feature when playing in full-screen mode.")
@@ -85,6 +121,11 @@ public class GUIConfig {
     @ConfigOption(name = "Real Time 12h Format", desc = "Display the current computer time in 12hr Format rather than 24h Format.")
     @ConfigEditorBoolean
     public boolean realTimeFormatToggle = false;
+
+    @Expose
+    @ConfigOption(name = "Real Time Show Seconds", desc = "Include the current seconds in the Real Time display.")
+    @ConfigEditorBoolean
+    public boolean realTimeShowSeconds = true;
 
     @Expose
     @ConfigLink(owner = GUIConfig.class, field = "realTime")

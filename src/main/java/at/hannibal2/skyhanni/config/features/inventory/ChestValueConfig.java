@@ -18,6 +18,11 @@ public class ChestValueConfig {
     public boolean enabled = false;
 
     @Expose
+    @ConfigOption(name = "Enabled in own Inventory", desc = "Enable the feature for your own inventory.")
+    @ConfigEditorBoolean
+    public boolean enableInOwnInventory = false;
+
+    @Expose
     @ConfigOption(name = "Enabled in dungeons", desc = "Enable the feature in dungeons.")
     @ConfigEditorBoolean
     public boolean enableInDungeons = false;
@@ -125,7 +130,7 @@ public class ChestValueConfig {
     public int itemToShow = 15;
 
     @Expose
-    @ConfigOption(name = "Hide below", desc = "Item item value below configured amount.\n" +
+    @ConfigOption(name = "Hide below", desc = "Hide items with value below configured amount.\n" +
         "Items are still counted for the total value.")
     @ConfigEditorSlider(
         minValue = 50_000,

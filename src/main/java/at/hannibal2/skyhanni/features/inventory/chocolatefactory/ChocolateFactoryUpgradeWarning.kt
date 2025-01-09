@@ -1,8 +1,10 @@
 package at.hannibal2.skyhanni.features.inventory.chocolatefactory
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.ProfileJoinEvent
 import at.hannibal2.skyhanni.events.SecondPassedEvent
 import at.hannibal2.skyhanni.features.fame.ReminderUtils
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.LorenzUtils
@@ -11,6 +13,7 @@ import at.hannibal2.skyhanni.utils.SoundUtils
 import at.hannibal2.skyhanni.utils.TimeUtils.minutes
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
+@SkyHanniModule
 object ChocolateFactoryUpgradeWarning {
 
     private val config get() = ChocolateFactoryAPI.config.chocolateUpgradeWarnings
@@ -25,7 +28,7 @@ object ChocolateFactoryUpgradeWarning {
         if (!LorenzUtils.inSkyBlock) return
         val profileStorage = profileStorage ?: return
 
-        val upgradeAvailableAt = SimpleTimeMark(profileStorage.bestUpgradeAvailableAt)
+        val upgradeAvailableAt = profileStorage.bestUpgradeAvailableAt
         if (upgradeAvailableAt.isInPast() && !upgradeAvailableAt.isFarPast()) {
             checkUpgradeWarning()
         }
@@ -42,15 +45,15 @@ object ChocolateFactoryUpgradeWarning {
             SoundUtils.playBeepSound()
         }
         if (ChocolateFactoryAPI.inChocolateFactory) return
-        ChatUtils.clickableChat(
+        ChatUtils.clickToActionOrDisable(
             "You have a Chocolate factory upgrade available to purchase!",
-            onClick = {
-                HypixelCommands.chocolateFactory()
-            }
+            config::upgradeWarning,
+            actionName = "open Chocolate Factory",
+            action = { HypixelCommands.chocolateFactory() },
         )
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onProfileChange(event: ProfileJoinEvent) {
         lastUpgradeWarning = SimpleTimeMark.farPast()
     }

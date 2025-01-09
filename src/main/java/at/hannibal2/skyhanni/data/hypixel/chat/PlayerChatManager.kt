@@ -11,11 +11,14 @@ import at.hannibal2.skyhanni.data.hypixel.chat.event.PlayerShowItemChatEvent
 import at.hannibal2.skyhanni.data.hypixel.chat.event.PrivateMessageChatEvent
 import at.hannibal2.skyhanni.data.hypixel.chat.event.SystemMessageEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ComponentMatcher
 import at.hannibal2.skyhanni.utils.ComponentMatcherUtils.intoSpan
 import at.hannibal2.skyhanni.utils.ComponentMatcherUtils.matchStyledMatcher
 import at.hannibal2.skyhanni.utils.ComponentSpan
+import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils.isInIsland
+import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.util.IChatComponent
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
@@ -23,17 +26,19 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 /**
  * Reading normal chat events, and splitting them up into many different player chat events, with all available extra information
  */
-class PlayerChatManager {
+@SkyHanniModule
+object PlayerChatManager {
 
     private val patternGroup = RepoPattern.group("data.chat.player")
 
     /**
      * REGEX-TEST: [58] §7nea89o§7: haiiiii
      * REGEX-TEST: [266] ♫ §b[MVP§d+§b] lrg89§f: a
+     * REGEX-TEST: [302] ♫ [MVP+] lrg89: problematic
      */
     private val globalPattern by patternGroup.pattern(
         "global",
-        "(?:\\[(?<level>\\d+)] )?(?<author>.+)(?<chatColor>§f|§7): (?<message>.*)"
+        "^(?:\\[(?<level>\\d+)] )?(?<author>(?:[^ ] )?(?:(?:§.)?\\[[^\\]]+\\] )?[^ ]+?)(?<chatColor>§f|§7|): (?<message>.*)\$",
     )
 
     /**
@@ -60,20 +65,21 @@ class PlayerChatManager {
      */
     private val guildPattern by patternGroup.pattern(
         "guild",
-        "§2Guild > (?<author>.+?)(?<guildRank> §e\\[\\w*])?§f: (?<message>.*)"
+        "§2Guild > (?<author>.+?) ?(?<guildRank>§e\\[\\w*])?§f: (?<message>.*)",
     )
 
     /**
      * REGEX-TEST: To nea89o: lol
      * REGEX-TEST: From nea89o: hiii
-     * REGEX-TEST: §eFrom stash: §r§fPufferfish
+     * REGEX-FAIL: From stash: Pufferfish
+     * REGEX-FAIL: From stash: Wheat
      * REGEX-TEST: To [MVP+] Eisengolem: Boop!
      * REGEX-TEST: From [MVP+] Eisengolem: Boop!
      * REGEX-TEST: To [MVP+] Eisengolem: danke
      */
     private val privateMessagePattern by patternGroup.pattern(
         "privatemessage",
-        "^(?!§eFrom stash: §r)(?<direction>From|To) (?<author>[^:]*): (?<message>.*)"
+        "^(?!From stash: )(?<direction>From|To) (?<author>[^:]*): (?<message>.*)"
     )
 
     /**
@@ -85,6 +91,7 @@ class PlayerChatManager {
      * REGEX-TEST: §b[MVP§c+§b] hannibal2§f§7 has §8[§6Heroic Aspect of the Void§8]
      * REGEX-TEST: §8[§b209§8] §b[MVP§d+§b] lrg89§f§7 is holding §8[§5Heroic Aspect of the Void§8]
      */
+    @Suppress("MaxLineLength")
     private val itemShowPattern by patternGroup.pattern(
         "itemshow",
         "(?:§8\\[(?<levelColor>§.)(?<level>\\d+)§8] )?(?<author>.*)§f§7 (?<action>is (?:holding|friends with a|wearing)|has) (?<itemName>.*)"
@@ -92,16 +99,16 @@ class PlayerChatManager {
 
     /**
      * REGEX-TEST: ♫ §c[Buddy ツ] §b[MVP§d+§b] lrg89
-     * REGEX-TEST: ℻ §b[MVP§5+§b] Alea1337
+     * REGEX-FAIL: ℻ §b[MVP§5+§b] Alea1337
      */
     private val privateIslandRankPattern by patternGroup.pattern(
         "privateislandrank",
-        "(?<prefix>.*?)(?<privateIslandRank>§.\\[(?!MVP(§.\\++)?§.]|VIP\\+*|YOU§.TUBE|ADMIN|MOD|GM)[^]]+\\]) (?<suffix>.*)"
+        "(?<prefix>.*?)(?<privateIslandRank>§.\\[(?!MVP(?:§.\\++)?§.]|VIP\\+*|YOU§.TUBE|ADMIN|MOD|GM)[^]]+\\]) (?<suffix>.*)"
     )
 
     /**
      * REGEX-TEST: ♫ §a[✌] §f[Gamer] §b[MVP§d+§b] lrg89
-     * REGEX-TEST: ℻ §b[MVP§5+§b] Alea1337
+     * REGEX-FAIL: ℻ §b[MVP§5+§b] Alea1337
      * REGEX-TEST: ♫ §a[✌] §c[Buddy ツ] §b[MVP§d+§b] lrg89
      */
     private val privateIslandGuestPattern by patternGroup.pattern(
@@ -164,6 +171,11 @@ class PlayerChatManager {
 
     private fun ComponentMatcher.isGlobalChat(event: LorenzChatEvent): Boolean {
         var author = groupOrThrow("author")
+        val chatColor = groupOrThrow("chatColor")
+        if (chatColor.length == 0 && !author.getText().removeColor().endsWith(LorenzUtils.getPlayerName())) {
+            // The last format string is always present, unless this is the players own message
+            return false
+        }
         val message = groupOrThrow("message").removePrefix("§f")
         if (author.getText().contains("[NPC]")) {
             NpcChatEvent(author, message, event.chatComponent).postChat(event)
@@ -191,7 +203,7 @@ class PlayerChatManager {
             levelComponent = group("level"),
             privateIslandRank = privateIslandRank,
             privateIslandGuest = privateIslandGuest,
-            chatColor = groupOrThrow("chatColor").getText(),
+            chatColor = chatColor.getText(),
             authorComponent = author,
             messageComponent = message,
             chatComponent = event.chatComponent,
@@ -201,24 +213,20 @@ class PlayerChatManager {
 
     private fun sendSystemMessage(event: LorenzChatEvent) {
         with(SystemMessageEvent(event.message, event.chatComponent)) {
-            val cancelled = postAndCatch()
-            event.handleChat(cancelled, blockedReason, chatComponent)
+            post()
+            event.handleChat(blockedReason, chatComponent)
         }
     }
 
     private fun AbstractChatEvent.postChat(event: LorenzChatEvent) {
-        val cancelled = postAndCatch()
-        event.handleChat(cancelled, blockedReason, chatComponent)
+        post()
+        event.handleChat(blockedReason, chatComponent)
     }
 
     private fun LorenzChatEvent.handleChat(
-        cancelled: Boolean,
         blockedReason: String?,
         chatComponent: IChatComponent,
     ) {
-        if (cancelled) {
-            this.cancel()
-        }
         blockedReason?.let {
             this.blockedReason = it
         }

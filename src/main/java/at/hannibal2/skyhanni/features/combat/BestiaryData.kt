@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.combat
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.config.features.combat.BestiaryConfig
 import at.hannibal2.skyhanni.config.features.combat.BestiaryConfig.DisplayTypeEntry
@@ -9,6 +10,7 @@ import at.hannibal2.skyhanni.events.GuiContainerEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.CollectionUtils.addAsSingletonList
 import at.hannibal2.skyhanni.utils.ConfigUtils
 import at.hannibal2.skyhanni.utils.InventoryUtils
@@ -16,16 +18,16 @@ import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils.addButton
-import at.hannibal2.skyhanni.utils.NumberUtil
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
 import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
 import at.hannibal2.skyhanni.utils.NumberUtil.romanToDecimalIfNecessary
-import at.hannibal2.skyhanni.utils.NumberUtil.roundToPrecision
+import at.hannibal2.skyhanni.utils.NumberUtil.roundTo
+import at.hannibal2.skyhanni.utils.NumberUtil.shortFormat
 import at.hannibal2.skyhanni.utils.NumberUtil.toRoman
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
 import at.hannibal2.skyhanni.utils.RenderUtils.renderStringsAndItems
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.renderables.Renderable
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
@@ -33,6 +35,7 @@ import net.minecraft.init.Items
 import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
+@SkyHanniModule
 object BestiaryData {
 
     private val config get() = SkyHanniMod.feature.combat.bestiary
@@ -45,7 +48,7 @@ object BestiaryData {
      */
     private val tierProgressPattern by patternGroup.pattern(
         "tierprogress",
-        "§7Progress to Tier [\\dIVXC]+: §b[\\d.]+%"
+        "§7Progress to Tier [\\dIVXC]+: §b[\\d.]+%",
     )
 
     /**
@@ -54,16 +57,25 @@ object BestiaryData {
      */
     private val overallProgressPattern by patternGroup.pattern(
         "overallprogress",
-        "§7Overall Progress: §b[\\d.]+%(?: §7\\(§c§lMAX!§7\\))?"
+        "§7Overall Progress: §b[\\d.]+%(?: §7\\(§c§lMAX!§7\\))?",
     )
 
+    /**
+     * REGEX-TEST: 9/10
+     * REGEX-TEST: 6/6
+     */
     private val progressPattern by patternGroup.pattern(
         "progress",
-        "(?<current>[0-9kKmMbB,.]+)/(?<needed>[0-9kKmMbB,.]+\$)"
+        "(?<current>[0-9kKmMbB,.]+)/(?<needed>[0-9kKmMbB,.]+\$)",
     )
+
+    /**
+     * REGEX-TEST: (1/2) Bestiary ➜ The Catacombs
+     * REGEX-TEST: Bestiary ➜ Dwarven Mines
+     */
     private val titlePattern by patternGroup.pattern(
         "title",
-        "^(?:\\(\\d+/\\d+\\) )?(Bestiary|.+) ➜ (.+)\$"
+        "^(?:\\(\\d+\\/\\d+\\) )?(?<title>Bestiary|.+) ➜ .+\$",
     )
 
     private var display = emptyList<List<Any>>()
@@ -73,19 +85,19 @@ object BestiaryData {
     private var inInventory = false
     private var isCategory = false
     private var overallProgressEnabled = false
-    private var indexes = listOf(
-        10, 11, 12, 13, 14, 15, 16,
-        19, 20, 21, 22, 23, 24, 25,
-        28, 29, 30, 31, 32, 33, 34,
-        37, 38, 39, 40, 41, 42, 43
-    )
+    private val indexes = listOf(
+        10..16,
+        19..25,
+        28..34,
+        37..43,
+    ).flatten()
 
     @SubscribeEvent
     fun onBackgroundDraw(event: GuiRenderEvent.ChestGuiOverlayRenderEvent) {
         if (!isEnabled()) return
         if (inInventory) {
             config.position.renderStringsAndItems(
-                display, extraSpace = -1, itemScale = 0.7, posLabel = "Bestiary Data"
+                display, extraSpace = -1, itemScale = 0.7, posLabel = "Bestiary Data",
             )
         }
     }
@@ -107,8 +119,8 @@ object BestiaryData {
         }
     }
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!isEnabled()) return
         val inventoryName = event.inventoryName
         val items = event.inventoryItems
@@ -122,14 +134,14 @@ object BestiaryData {
         update()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         mobList.clear()
         stackList.clear()
         inInventory = false
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(2, "misc.bestiaryData", "combat.bestiary")
 
@@ -225,8 +237,8 @@ object BestiaryData {
                     currentTotalKill,
                     totalKillToTier,
                     currentKillToTier,
-                    actualRealTotalKill
-                )
+                    actualRealTotalKill,
+                ),
             )
         }
     }
@@ -277,10 +289,12 @@ object BestiaryData {
             val isUnlocked = mob.actualRealTotalKill != 0.toLong()
             val isMaxed = mob.percentToMax() >= 1
             if (!isUnlocked) {
-                newDisplay.add(buildList {
-                    add(" §7- ")
-                    add("${mob.name}: §cNot unlocked!")
-                })
+                newDisplay.add(
+                    buildList {
+                        add(" §7- ")
+                        add("${mob.name}: §cNot unlocked!")
+                    },
+                )
                 continue
             }
             if (isMaxed && config.hideMaxed) continue
@@ -302,7 +316,7 @@ object BestiaryData {
         "§6Percent to max: §b${mob.percentToMaxFormatted()}",
         "§6Percent to tier: §b${mob.percentToTierFormatted()}",
         "",
-        "§7More info thing"
+        "§7More info thing",
     )
 
     private fun getMobLine(mob: BestiaryMob, isMaxed: Boolean): String {
@@ -325,7 +339,7 @@ object BestiaryData {
                         DisplayTypeEntry.GLOBAL_NEXT -> mob.killNeededForNextLevel
                         else -> 0
                     }
-                    val percentage = ((currentKill.toDouble() / killNeeded) * 100).roundToPrecision(2)
+                    val percentage = ((currentKill.toDouble() / killNeeded) * 100).roundTo(2)
                     val suffix = if (type == DisplayTypeEntry.GLOBAL_NEXT) "§ato level ${mob.getNextLevel()}" else ""
                     "§7(§b${currentKill.formatNumber()}§7/§b${killNeeded.formatNumber()}§7) §a$percentage§6% $suffix"
                 }
@@ -356,7 +370,8 @@ object BestiaryData {
                 // todo: avoid ordinal
                 config.numberFormat = BestiaryConfig.NumberFormatEntry.entries[(config.numberFormat.ordinal + 1) % 2]
                 update()
-            })
+            },
+        )
 
         newDisplay.addButton(
             prefix = "§7Display Type: ",
@@ -365,7 +380,8 @@ object BestiaryData {
                 // todo: avoid ordinal
                 config.displayType = DisplayTypeEntry.entries[(config.displayType.ordinal + 1) % 8]
                 update()
-            })
+            },
+        )
 
         newDisplay.addButton(
             prefix = "§7Number Type: ",
@@ -373,35 +389,38 @@ object BestiaryData {
             onChange = {
                 config.replaceRoman = !config.replaceRoman
                 update()
-            }
+            },
         )
+
         newDisplay.addButton(
             prefix = "§7Hide Maxed: ",
             getName = HideMaxed.entries[if (config.hideMaxed) 1 else 0].type,
             onChange = {
                 config.hideMaxed = !config.hideMaxed
                 update()
-            }
+            },
         )
     }
 
     private fun addCategories(newDisplay: MutableList<List<Any>>) {
-        if (catList.isNotEmpty()) {
-            newDisplay.addAsSingletonList("§7Category")
-            for (cat in catList) {
-                newDisplay.add(buildList {
+        if (catList.isEmpty()) return
+        newDisplay.addAsSingletonList("§7Category")
+        for (cat in catList) {
+            newDisplay.add(
+                buildList {
                     add(" §7- ${cat.name}§7: ")
                     val element = when {
                         cat.familiesCompleted == cat.totalFamilies -> "§c§lCompleted!"
                         cat.familiesFound == cat.totalFamilies -> "§b${cat.familiesCompleted}§7/§b${cat.totalFamilies} §7completed"
                         cat.familiesFound < cat.totalFamilies ->
-                            "§b${cat.familiesFound}§7/§b${cat.totalFamilies} §7found, §b${cat.familiesCompleted}§7/§b${cat.totalFamilies} §7completed"
+                            "§b${cat.familiesFound}§7/§b${cat.totalFamilies} §7found, " +
+                                "§b${cat.familiesCompleted}§7/§b${cat.totalFamilies} §7completed"
 
                         else -> continue
                     }
                     add(element)
-                })
-            }
+                },
+            )
         }
     }
 
@@ -424,7 +443,7 @@ object BestiaryData {
         if (stack == null) return false
         val bestiaryGuiTitleMatcher = titlePattern.matcher(name)
         if (bestiaryGuiTitleMatcher.matches()) {
-            if ("Bestiary" != bestiaryGuiTitleMatcher.group(1)) {
+            if ("Bestiary" != bestiaryGuiTitleMatcher.group("title")) {
                 var loreContainsFamiliesFound = false
                 for (line in stack.getLore()) {
                     if (line.removeColor().startsWith("Families Found")) {
@@ -439,8 +458,9 @@ object BestiaryData {
             return true
         } else if (name == "Search Results") {
             val loreList = stack.getLore()
-            if (loreList.size >= 2 && loreList[0].startsWith("§7Query: §a")
-                && loreList[1].startsWith("§7Results: §a")
+            if (loreList.size >= 2 &&
+                loreList[0].startsWith("§7Query: §a") &&
+                loreList[1].startsWith("§7Results: §a")
             ) {
                 return true
             }
@@ -455,7 +475,7 @@ object BestiaryData {
 
     enum class NumberType(val type: String) {
         INT("Normal (1, 2, 3)"),
-        ROMAN("Roman (I, II, III")
+        ROMAN("Roman (I, II, III)")
     }
 
     enum class DisplayType(val type: String) {
@@ -475,7 +495,7 @@ object BestiaryData {
     }
 
     private fun Long.formatNumber(): String = when (config.numberFormat) {
-        BestiaryConfig.NumberFormatEntry.SHORT -> NumberUtil.format(this)
+        BestiaryConfig.NumberFormatEntry.SHORT -> this.shortFormat()
         BestiaryConfig.NumberFormatEntry.LONG -> this.addSeparators()
         else -> "0"
     }

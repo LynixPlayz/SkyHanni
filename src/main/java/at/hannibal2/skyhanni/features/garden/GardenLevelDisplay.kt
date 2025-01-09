@@ -1,5 +1,6 @@
 package at.hannibal2.skyhanni.features.garden
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.data.ProfileStorageData
 import at.hannibal2.skyhanni.events.ConfigLoadEvent
@@ -8,30 +9,32 @@ import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.LorenzToolTipEvent
 import at.hannibal2.skyhanni.events.ProfileJoinEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.ConditionalUtils
+import at.hannibal2.skyhanni.utils.DelayedRun
 import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.ItemUtils.name
-import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.LorenzUtils.groupOrNull
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
-import at.hannibal2.skyhanni.utils.NumberUtil.format
 import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
 import at.hannibal2.skyhanni.utils.NumberUtil.romanToDecimalIfNecessary
+import at.hannibal2.skyhanni.utils.NumberUtil.shortFormat
 import at.hannibal2.skyhanni.utils.NumberUtil.toRoman
+import at.hannibal2.skyhanni.utils.RegexUtils.groupOrNull
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
 import at.hannibal2.skyhanni.utils.StringUtils
 import at.hannibal2.skyhanni.utils.StringUtils.isRoman
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.milliseconds
 
-class GardenLevelDisplay {
+@SkyHanniModule
+object GardenLevelDisplay {
 
     private val config get() = GardenAPI.config.gardenLevels
     private var useRomanNumerals: Boolean
@@ -43,32 +46,36 @@ class GardenLevelDisplay {
     private val patternGroup = RepoPattern.group("garden.level")
     private val expToNextLevelPattern by patternGroup.pattern(
         "inventory.nextxp",
-        ".* §e(?<nextLevelExp>.*)§6/.*"
+        ".* §e(?<nextLevelExp>.*)§6/.*",
     )
+
+    /**
+     * REGEX-TEST: §aGarden Level 17
+     */
     private val gardenItemNamePattern by patternGroup.pattern(
         "inventory.name",
-        "Garden (?:Desk|Level (?<currentLevel>.*))"
+        "Garden (?:Desk|Level (?<currentLevel>.*))",
     )
     private val overflowPattern by patternGroup.pattern(
         "inventory.overflow",
-        ".*§r §6(?<overflow>.*)"
+        ".*§r §6(?<overflow>.*)",
     )
     private val gardenLevelPattern by patternGroup.pattern(
         "inventory.levelprogress",
-        "§7Progress to Level (?<currentLevel>[^:]*).*"
+        "§7Progress to Level (?<currentLevel>[^:]*).*",
     )
     private val gardenMaxLevelPattern by patternGroup.pattern(
         "inventory.max",
-        "§5§o§7§8Max level reached!"
+        "§5§o§7§8Max level reached!",
     )
     private val visitorRewardPattern by patternGroup.pattern(
         "chat.increase",
-        " {4}§r§8\\+§r§2(?<exp>.*) §r§7Garden Experience"
+        " {4}§r§8\\+§r§2(?<exp>.*) §r§7Garden Experience",
     )
 
     private var display = ""
 
-    @SubscribeEvent
+    @HandleEvent
     fun onProfileJoin(event: ProfileJoinEvent) {
         update()
     }
@@ -91,22 +98,21 @@ class GardenLevelDisplay {
         if (!config.overflowChat) return
         val newLevel = GardenAPI.getGardenLevel()
         if (newLevel != oldLevel + 1 || newLevel <= 15) return
-        LorenzUtils.runDelayed(50.milliseconds) {
+        DelayedRun.runDelayed(50.milliseconds) {
             // TODO utils function that is shared with Crop Milestone Display
             ChatUtils.clickableChat(
                 " \n§b§lGARDEN LEVEL UP §8$oldLevel ➜ §b$newLevel\n" +
                     " §8+§aRespect from Elite Farmers and SkyHanni members :)\n ",
-                onClick = {
-                    HypixelCommands.gardenLevels()
-                },
-                prefix = false
+                onClick = { HypixelCommands.gardenLevels() },
+                "§eClick to view your Garden Level progress and rewards!",
+                prefix = false,
             )
 
         }
     }
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!GardenAPI.inGarden()) return
         val item = when (event.inventoryName) {
             "Desk" -> event.inventoryItems[4] ?: return
@@ -171,7 +177,7 @@ class GardenLevelDisplay {
             if (next && line.contains("                    ")) {
                 val progress = overflow / needForOnlyNextLvl
                 val progressBar = StringUtils.progressBar(progress, 20)
-                iterator.set("$progressBar §e${overflow.addSeparators()}§6/§e${format(needForOnlyNextLvl)}")
+                iterator.set("$progressBar §e${overflow.addSeparators()}§6/§e${needForOnlyNextLvl.shortFormat()}")
                 iterator.add("")
                 iterator.add("§b§lOVERFLOW XP:")
                 iterator.add("§7▸ ${overflowTotal.addSeparators()}")
@@ -212,14 +218,14 @@ class GardenLevelDisplay {
         config.pos.renderString(display, posLabel = "Garden Level")
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigLoad(event: ConfigLoadEvent) {
         ConditionalUtils.onToggle(config.overflow) { update() }
     }
 
     private fun isEnabled() = GardenAPI.inGarden() && config.display
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(3, "garden.gardenLevelDisplay", "garden.gardenLevels.display")
         event.move(3, "garden.gardenLevelPos", "garden.gardenLevels.pos")

@@ -1,11 +1,13 @@
 package at.hannibal2.skyhanni.data
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigManager
 import at.hannibal2.skyhanni.data.jsonobjects.repo.GardenJson
 import at.hannibal2.skyhanni.events.RepositoryReloadEvent
 import at.hannibal2.skyhanni.features.garden.CropType
 import at.hannibal2.skyhanni.features.garden.GardenAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.CollectionUtils.editCopy
 import at.hannibal2.skyhanni.utils.CollectionUtils.nextAfter
@@ -17,27 +19,31 @@ import at.hannibal2.skyhanni.utils.NumberUtil.formatInt
 import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
 import at.hannibal2.skyhanni.utils.NumberUtil.romanToDecimalIfNecessary
 import at.hannibal2.skyhanni.utils.OSUtils
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import kotlinx.coroutines.launch
 import net.minecraft.item.ItemStack
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
+@SkyHanniModule
 object GardenCropMilestonesCommunityFix {
+
+    /**
+     * REGEX-TEST: §2§l§m       §f§l§m             §r §e676,985§6/§e2M
+     */
     private val amountPattern by RepoPattern.pattern(
         "data.garden.milestonefix.amount",
-        ".*§e(?<having>.*)§6/§e(?<max>.*)"
+        ".*§e(?<having>.*)§6/§e(?<max>.*)",
     )
 
     private var showWrongData = false
     private var showWhenAllCorrect = false
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRepoReload(event: RepositoryReloadEvent) {
         val data = event.getConstant<GardenJson>("Garden")
-        val map = data.crop_milestone_community_help ?: return
+        val map = data.cropMilestoneCommunityHelp
         for ((key, value) in map) {
             if (key == "show_wrong_data") {
                 showWrongData = value
@@ -65,7 +71,7 @@ object GardenCropMilestonesCommunityFix {
             ChatUtils.chat(
                 "Found §c${data.size} §ewrong crop milestone steps in the menu! " +
                     "Correct data got put into clipboard. " +
-                    "Please share it on the §bSkyHanni Discord §ein the channel §b#share-data§e."
+                    "Please share it on the §bSkyHanni Discord §ein the channel §b#share-data§e.",
             )
             OSUtils.copyToClipboard("```${data.joinToString("\n")}```")
         } else {
@@ -85,38 +91,16 @@ object GardenCropMilestonesCommunityFix {
 
         val lore = stack.getLore()
         val next = lore.nextAfter({ GardenCropMilestones.totalPattern.matches(it) }, 3) ?: return
-        val total = lore.nextAfter({ GardenCropMilestones.totalPattern.matches(it) }, 6) ?: return
 
-//         debug(" ")
-//         debug("crop: $crop")
-//         debug("realTier: $realTier")
-
-        val guessNextMax = GardenCropMilestones.getCropsForTier(realTier + 1, crop) - GardenCropMilestones.getCropsForTier(realTier, crop)
-//         debug("guessNextMax: ${guessNextMax.addSeparators()}")
+        val guessNextMax = nextMax(realTier, crop)
         val nextMax = amountPattern.matchMatcher(next) {
             group("max").formatLong()
         } ?: return
-//         debug("nextMax real: ${nextMax.addSeparators()}")
+
         if (nextMax != guessNextMax) {
-//             debug("wrong, add to list")
             wrongData.add("$crop:$realTier:${nextMax.addSeparators()}")
         }
-
-        val guessTotalMax = GardenCropMilestones.getCropsForTier(46, crop) // no need to overflow here
-//         println("guessTotalMax: ${guessTotalMax.addSeparators()}")
-        val totalMax = amountPattern.matchMatcher(total) {
-            group("max").formatLong()
-        } ?: return
-//         println("totalMax real: ${totalMax.addSeparators()}")
-        val totalOffBy = guessTotalMax - totalMax
-//         debug("$crop total offf by: ${totalOffBy.addSeparators()}")
     }
-
-//     fun debug(message: String) {
-//         if (SkyHanniMod.feature.dev.debug.enabled) {
-//             println(message)
-//         }
-//     }
 
     /**
      * This helps to fix wrong crop milestone data
@@ -160,13 +144,16 @@ object GardenCropMilestonesCommunityFix {
     }
 
     private fun tryFix(crop: CropType, tier: Int, amount: Int): Boolean {
-        val guessNextMax = GardenCropMilestones.getCropsForTier(tier + 1, crop) - GardenCropMilestones.getCropsForTier(tier, crop)
+        val guessNextMax = nextMax(tier, crop)
         if (guessNextMax.toInt() == amount) return false
         GardenCropMilestones.cropMilestoneData = GardenCropMilestones.cropMilestoneData.editCopy {
             fix(crop, this, tier, amount)
         }
         return true
     }
+
+    private fun nextMax(tier: Int, crop: CropType): Long =
+        GardenCropMilestones.getCropsForTier(tier + 1, crop) - GardenCropMilestones.getCropsForTier(tier, crop)
 
     private fun fix(crop: CropType, map: MutableMap<CropType, List<Int>>, tier: Int, amount: Int) {
         map[crop] = map[crop]!!.editCopy {

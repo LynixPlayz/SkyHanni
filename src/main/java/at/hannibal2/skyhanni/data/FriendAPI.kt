@@ -1,50 +1,72 @@
 package at.hannibal2.skyhanni.data
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigFileType
 import at.hannibal2.skyhanni.data.jsonobjects.local.FriendsJson
 import at.hannibal2.skyhanni.data.jsonobjects.local.FriendsJson.PlayerFriends.Friend
 import at.hannibal2.skyhanni.events.HypixelJoinEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.test.command.ErrorManager
 import at.hannibal2.skyhanni.utils.LorenzUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.StringUtils.cleanPlayerName
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.util.ChatStyle
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import java.util.UUID
 
+@SkyHanniModule
 object FriendAPI {
     private val patternGroup = RepoPattern.group("data.friends")
+
+    /**
+     * REGEX-TEST: §r§eYou removed §r§b[MVP§r§d+§r§b] Throwpo§r§e from your friends list!§r§9§m
+     */
     private val removedFriendPattern by patternGroup.pattern(
         "remove",
-        ".*\n§r§eYou removed §r(?<name>.*)§e from your friends list!§r§9§m\n.*"
-    )
-    private val addedFriendPattern by patternGroup.pattern(
-        "add",
-        "§aYou are now friends with (?<name>.*)"
-    )
-    private val noBestFriendPattern by patternGroup.pattern(
-        "removebest",
-        ".*\n§r(?<name>.*)§e is no longer a best friend!§r§9§m\n.*"
-    )
-    private val bestFriendPattern by patternGroup.pattern(
-        "addbest",
-        ".*\n(?<name>.*)§a is now a best friend!§r§9§m\n.*"
+        ".*\n§r§eYou removed §r(?<name>.*)§e from your friends list!§r§9§m\n.*",
     )
 
     /**
-     * REGEX-TEST:
-     * §eClick here to view §bAaronL_Jackson§e's profile
+     * REGEX-TEST: §aYou are now friends with §r§b[MVP§r§d+§r§b] Throwpo
+     */
+    private val addedFriendPattern by patternGroup.pattern(
+        "add",
+        "§aYou are now friends with (?<name>.*)",
+    )
+
+    /**
+     * REGEX-TEST: §r§b[MVP§r§c+§r§b] hannibal2§r§e is no longer a best friend!§r§9§m
+     */
+    private val noBestFriendPattern by patternGroup.pattern(
+        "removebest",
+        ".*\n§r(?<name>.*)§e is no longer a best friend!§r§9§m\n.*",
+    )
+
+    /**
+     * REGEX-TEST: §r§b[MVP§r§c+§r§b] hannibal2§r§a is now a best friend!§r§9§m
+     */
+    private val bestFriendPattern by patternGroup.pattern(
+        "addbest",
+        ".*\n(?<name>.*)§a is now a best friend!§r§9§m\n.*",
+    )
+
+    /**
+     * REGEX-TEST: §eClick here to view §bThrowpo§e's profile
      */
     private val rawNamePattern by patternGroup.pattern(
         "rawname",
-        "\\n§eClick here to view §.(?<name>.*)§e's profile"
+        "\n§eClick here to view §.(?<name>.*)§e's profile",
     )
+
+    /**
+     * REGEX-TEST: /viewprofile 503450fc-72c2-4e87-8243-94e264977437
+     */
     private val readFriendListPattern by patternGroup.pattern(
         "readfriends",
-        "/viewprofile (?<uuid>.*)"
+        "/viewprofile (?<uuid>.*)",
     )
 
     private val tempFriends = mutableListOf<Friend>()
@@ -53,7 +75,7 @@ object FriendAPI {
         FriendsJson.PlayerFriends().also { it.friends = mutableMapOf() }
     }.friends
 
-    @SubscribeEvent
+    @HandleEvent
     fun onHypixelJoin(event: HypixelJoinEvent) {
         if (SkyHanniMod.friendsData.players == null) {
             SkyHanniMod.friendsData.players = mutableMapOf()
@@ -151,7 +173,8 @@ object FriendAPI {
     }
 
     private fun readName(chatStyle: ChatStyle): String? {
-        for (component in chatStyle.chatHoverEvent.value.siblings) {
+        val hoverEventSiblings = chatStyle.chatHoverEvent?.value?.siblings ?: return null
+        for (component in hoverEventSiblings) {
             val rawName = component.unformattedText
             rawNamePattern.matchMatcher(rawName) {
                 return group("name").cleanPlayerName()

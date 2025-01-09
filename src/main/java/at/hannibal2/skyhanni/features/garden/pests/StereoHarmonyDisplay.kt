@@ -1,23 +1,27 @@
 package at.hannibal2.skyhanni.features.garden.pests
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.data.ProfileStorageData
 import at.hannibal2.skyhanni.events.ConfigLoadEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
 import at.hannibal2.skyhanni.features.garden.GardenAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ConditionalUtils
 import at.hannibal2.skyhanni.utils.ItemUtils
 import at.hannibal2.skyhanni.utils.NEUItems.getItemStack
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils
 import at.hannibal2.skyhanni.utils.RenderUtils.renderRenderables
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.SkullTextureHolder
 import at.hannibal2.skyhanni.utils.renderables.Renderable
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
-class StereoHarmonyDisplay {
+@SkyHanniModule
+object StereoHarmonyDisplay {
 
     private val config get() = PestAPI.config.stereoHarmony
 
@@ -49,12 +53,13 @@ class StereoHarmonyDisplay {
 
     private var display = emptyList<Renderable>()
 
-    private val questionMarkSkull = ItemUtils.createSkull(
-        displayName = "§c?",
-        uuid = "28aa984a-2077-40cc-8de7-e641adf2c497",
-        value = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNDZiY" +
-            "TYzMzQ0ZjQ5ZGQxYzRmNTQ4OGU5MjZiZjNkOWUyYjI5OTE2YTZjNTBkNjEwYmI0MGE1MjczZGM4YzgyIn19fQ=="
-    )
+    private val questionMarkSkull by lazy {
+        ItemUtils.createSkull(
+            displayName = "§c?",
+            uuid = "28aa984a-2077-40cc-8de7-e641adf2c497",
+            value = SkullTextureHolder.getTexture("QUESTION_MARK")
+        )
+    }
 
     private fun update() {
         display = drawDisplay()
@@ -108,7 +113,7 @@ class StereoHarmonyDisplay {
         display = emptyList()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigLoad(event: ConfigLoadEvent) {
         ConditionalUtils.onToggle(config.showHead, config.showCrop) { update() }
     }

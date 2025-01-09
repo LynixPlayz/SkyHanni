@@ -1,5 +1,6 @@
 package at.hannibal2.skyhanni.features.garden.inventory.plots
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.features.garden.PlotMenuHighlightingConfig.PlotStatusType
 import at.hannibal2.skyhanni.events.GuiContainerEvent
 import at.hannibal2.skyhanni.events.InventoryUpdatedEvent
@@ -9,17 +10,19 @@ import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.currentSpray
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.isBeingPasted
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.locked
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.pests
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
-class GardenPlotMenuHighlighting {
+@SkyHanniModule
+object GardenPlotMenuHighlighting {
 
     private val config get() = GardenAPI.config.plotMenuHighlighting
 
-    private var highlightedPlots = mutableMapOf<GardenPlotAPI.Plot, PlotStatusType>()
+    private val highlightedPlots = mutableMapOf<GardenPlotAPI.Plot, PlotStatusType>()
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryUpdated(event: InventoryUpdatedEvent) {
         if (!isEnabled()) return
 
@@ -27,7 +30,8 @@ class GardenPlotMenuHighlighting {
             val list = mutableListOf<PlotStatusType>()
             val plot = GardenPlotAPI.plots.find { it.inventorySlot == slot.slotIndex } ?: continue
 
-            val (pestsEnabled, spraysEnabled, locksEnabled, currentEnabled, pastesEnabled) = PlotStatusType.entries.map { it in config.deskPlotStatusTypes }
+            val (pestsEnabled, spraysEnabled, locksEnabled, currentEnabled, pastesEnabled) =
+                PlotStatusType.entries.map { it in config.deskPlotStatusTypes }
 
             if (plot.pests >= 1 && pestsEnabled) list.add(PlotStatusType.PESTS)
             if (plot.currentSpray != null && spraysEnabled) list.add(PlotStatusType.SPRAYS)

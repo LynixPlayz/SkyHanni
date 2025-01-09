@@ -6,7 +6,7 @@ import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.NEUItems
-import at.hannibal2.skyhanni.utils.RenderUtils.renderSingleLineWithItems
+import at.hannibal2.skyhanni.utils.RenderUtils.renderRenderable
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.SkyBlockTime
 import at.hannibal2.skyhanni.utils.SoundUtils
@@ -20,6 +20,7 @@ import java.time.Instant
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
+// @SkyHanniModule
 object Year300RaffleEvent {
 
     private val config get() = SkyHanniMod.feature.event.century
@@ -28,7 +29,7 @@ object Year300RaffleEvent {
     private var lastTimerReceived = SimpleTimeMark.farPast()
     private var lastTimeAlerted = SimpleTimeMark.farPast()
 
-    private var overlay: List<Any>? = null
+    private var overlay: Renderable? = null
 
     @SubscribeEvent
     fun onChat(event: LorenzChatEvent) {
@@ -42,9 +43,9 @@ object Year300RaffleEvent {
 
     @SubscribeEvent
     fun onRenderOverlay(event: GuiRenderEvent.GuiOverlayRenderEvent) {
-        config.activeTimerPosition.renderSingleLineWithItems(
+        config.activeTimerPosition.renderRenderable(
             overlay ?: return,
-            posLabel = "300þ Anniversary Active Timer"
+            posLabel = "300þ Anniversary Active Timer",
         )
     }
 
@@ -64,9 +65,11 @@ object Year300RaffleEvent {
             SoundUtils.centuryActiveTimerAlert.playSound()
             lastTimeAlerted = SimpleTimeMark.now()
         }
-        overlay = listOf(
-            Renderable.itemStack(displayItem),
-            Renderable.string("§eTime Left: ${timeLeft.format()}")
+        overlay = Renderable.horizontalContainer(
+            listOf(
+                Renderable.itemStack(displayItem),
+                Renderable.string("§eTime Left: ${timeLeft.format()}"),
+            ),
         )
     }
 }

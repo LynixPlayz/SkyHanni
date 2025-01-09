@@ -1,22 +1,39 @@
 package at.hannibal2.skyhanni.data
 
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 
+@SkyHanniModule
 object PetAPI {
     private val patternGroup = RepoPattern.group("misc.pet")
+
+    /**
+     * REGEX-TEST: Pets
+     * REGEX-TEST: Pets (1/2)
+     */
     private val petMenuPattern by patternGroup.pattern(
         "menu.title",
-        "Pets(?: \\(\\d+/\\d+\\) )?"
+        "Pets(?: \\(\\d+/\\d+\\) )?",
     )
+
+    /**
+     * REGEX-TEST: §e⭐ §7[Lvl 200] §6Golden Dragon§d ✦
+     * REGEX-TEST: ⭐ [Lvl 100] Black Cat ✦
+     */
     private val petItemName by patternGroup.pattern(
         "item.name",
-        "(?:§.)*\\[Lvl (?<level>\\d+)] (?<name>.*)"
+        "(?<favorite>(?:§.)*⭐ )?(?:§.)*\\[Lvl (?<level>\\d+)] (?<name>.*)",
     )
+
+    /**
+     * REGEX-TEST: §7[Lvl 1➡200] §6Golden Dragon
+     * REGEX-TEST: §7[Lvl {LVL}] §6Golden Dragon
+     */
     private val neuRepoPetItemName by patternGroup.pattern(
         "item.name.neu.format",
-        "(§f§f)?§7\\[Lvl 1➡(100|200)] (?<name>.*)"
+        "(?:§f§f)?§7\\[Lvl (?:1➡(?:100|200)|\\{LVL})] (?<name>.*)",
     )
 
     private val ignoredPetStrings = listOf(
@@ -34,7 +51,7 @@ object PetAPI {
     var currentPet: String?
         get() = ProfileStorageData.profileSpecific?.currentPet?.takeIf { it.isNotEmpty() }
         set(value) {
-            ProfileStorageData.profileSpecific?.currentPet = value
+            ProfileStorageData.profileSpecific?.currentPet = value.orEmpty()
         }
 
     fun isCurrentPet(petName: String): Boolean = currentPet?.contains(petName) ?: false

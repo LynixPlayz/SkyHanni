@@ -1,89 +1,104 @@
 package at.hannibal2.skyhanni.features.misc
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
+import at.hannibal2.skyhanni.config.commands.CommandCategory
+import at.hannibal2.skyhanni.config.commands.CommandRegistrationEvent
 import at.hannibal2.skyhanni.config.enums.OutsideSbFeature
 import at.hannibal2.skyhanni.events.GuiRenderEvent
+import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
-import at.hannibal2.skyhanni.events.PacketEvent
+import at.hannibal2.skyhanni.events.SecondPassedEvent
+import at.hannibal2.skyhanni.events.minecraft.packet.PacketReceivedEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.LorenzUtils.round
+import at.hannibal2.skyhanni.utils.NumberUtil.roundTo
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
-import net.minecraftforge.fml.common.eventhandler.EventPriority
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
-import kotlin.concurrent.fixedRateTimer
+import kotlin.time.Duration.Companion.seconds
 
-class TpsCounter {
+@SkyHanniModule
+object TpsCounter {
 
     private val config get() = SkyHanniMod.feature.gui
 
-    companion object {
-
-        private const val minDataAmount = 5
-        private const val waitAfterWorldSwitch = 6
-    }
+    private val ignorePacketDelay = 5.seconds
+    private val minimumSecondsDisplayDelay = 10.seconds
 
     private var packetsFromLastSecond = 0
-    private var tpsList = mutableListOf<Int>()
-    private var ignoreFirstTicks = waitAfterWorldSwitch
-    private var hasPacketReceived = false
+    private val tpsList = mutableListOf<Int>()
+    private var hasRemovedFirstSecond = false
 
-    private var display = ""
+    private var hasReceivedPacket = false
 
-    init {
-        // TODO use SecondPassedEvent + passedSince
-        fixedRateTimer(name = "skyhanni-tps-counter-seconds", period = 1000L) {
-            if (!isEnabled()) return@fixedRateTimer
-            if (packetsFromLastSecond == 0) return@fixedRateTimer
+    var tps: Double? = null
+        private set
 
-            if (ignoreFirstTicks > 0) {
-                ignoreFirstTicks--
-                val current = ignoreFirstTicks + minDataAmount
-                display = "§eTPS: §f(${current}s)"
-                packetsFromLastSecond = 0
-                return@fixedRateTimer
-            }
+    private var display: String? = null
 
-            tpsList.add(packetsFromLastSecond)
-            packetsFromLastSecond = 0
-            if (tpsList.size > 10) {
-                tpsList = tpsList.drop(1).toMutableList()
-            }
+    private val timeSinceWorldSwitch get() = LorenzUtils.lastWorldSwitch.passedSince()
+    private val tilCalculated: String get() =
+        "§fCalculating... §7(${(10.seconds - timeSinceWorldSwitch).inWholeSeconds}s)"
 
-            display = if (tpsList.size < minDataAmount) {
-                val current = minDataAmount - tpsList.size
-                "§eTPS: §f(${current}s)"
-            } else {
-                val sum = tpsList.sum().toDouble()
-                var tps = (sum / tpsList.size).round(1)
-                if (tps > 20) tps = 20.0
-                val color = getColor(tps)
-                "§eTPS: $color$tps"
-            }
+    @SubscribeEvent
+    fun onSecondPassed(event: SecondPassedEvent) {
+        if (shouldIgnore()) {
+            updateDisplay()
+            return
         }
-        // TODO use DelayedRun
-        fixedRateTimer(name = "skyhanni-tps-counter-ticks", period = 50L) {
-            if (!isEnabled()) return@fixedRateTimer
 
-            if (hasPacketReceived) {
-                hasPacketReceived = false
-                packetsFromLastSecond++
-            }
+        if (packetsFromLastSecond != 0) {
+            if (hasRemovedFirstSecond) tpsList.add(packetsFromLastSecond)
+            hasRemovedFirstSecond = true
+        }
+        packetsFromLastSecond = 0
+
+        if (tpsList.size > 10) tpsList.removeAt(0)
+
+        updateDisplay()
+    }
+
+    private fun updateDisplay() {
+        val timeUntil = minimumSecondsDisplayDelay - timeSinceWorldSwitch
+        val text = if (timeUntil.isPositive()) {
+            "§f(${timeUntil.inWholeSeconds}s)"
+        } else {
+            val sum = tpsList.sum().toDouble()
+            val newTps = (sum / tpsList.size).roundTo(1).coerceIn(0.0..20.0)
+            tps = newTps
+            val legacyColor = getColor(newTps)
+            "$legacyColor$newTps"
+        }
+        display = "§eTPS: $text"
+    }
+
+    private fun tpsCommand() {
+        val tpsMessage = tps?.let { "${getColor(it)}$it" } ?: tilCalculated
+        ChatUtils.chat("§eTPS: $tpsMessage")
+    }
+
+    @SubscribeEvent
+    fun onTick(event: LorenzTickEvent) {
+        if (hasReceivedPacket) {
+            packetsFromLastSecond++
+            hasReceivedPacket = false
         }
     }
 
     @SubscribeEvent
     fun onWorldChange(event: LorenzWorldChangeEvent) {
         tpsList.clear()
+        tps = null
         packetsFromLastSecond = 0
-        ignoreFirstTicks = waitAfterWorldSwitch
-        display = ""
+        display = null
+        hasRemovedFirstSecond = false
     }
 
-    @SubscribeEvent(priority = EventPriority.LOW, receiveCanceled = true)
-    fun onPacketReceive(event: PacketEvent.ReceiveEvent) {
-        if (!config.tpsDisplay) return
-        hasPacketReceived = true
+    @HandleEvent(priority = HandleEvent.HIGHEST, receiveCancelled = true)
+    fun onPacketReceive(event: PacketReceivedEvent) {
+        hasReceivedPacket = true
     }
 
     @SubscribeEvent
@@ -93,10 +108,22 @@ class TpsCounter {
         config.tpsDisplayPosition.renderString(display, posLabel = "Tps Display")
     }
 
-    private fun isEnabled() = LorenzUtils.onHypixel && config.tpsDisplay &&
+    @HandleEvent
+    fun onCommandRegistration(event: CommandRegistrationEvent) {
+        event.register("shtps") {
+            description = "Informs in chat about the server ticks per second (TPS)."
+            category = CommandCategory.USERS_ACTIVE
+            callback { tpsCommand() }
+        }
+    }
+
+    private fun shouldIgnore() = timeSinceWorldSwitch < ignorePacketDelay
+
+    private fun isEnabled() = LorenzUtils.onHypixel &&
+        config.tpsDisplay &&
         (LorenzUtils.inSkyBlock || OutsideSbFeature.TPS_DISPLAY.isSelected())
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(2, "misc.tpsDisplayEnabled", "gui.tpsDisplay")
         event.move(2, "misc.tpsDisplayPosition", "gui.tpsDisplayPosition")

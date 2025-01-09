@@ -1,45 +1,58 @@
 package at.hannibal2.skyhanni.data
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.PurseChangeCause
 import at.hannibal2.skyhanni.events.PurseChangeEvent
-import at.hannibal2.skyhanni.events.ScoreboardChangeEvent
+import at.hannibal2.skyhanni.events.ScoreboardUpdateEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.NumberUtil.formatDouble
 import at.hannibal2.skyhanni.utils.NumberUtil.million
-import at.hannibal2.skyhanni.utils.StringUtils.matchFirst
+import at.hannibal2.skyhanni.utils.RegexUtils.firstMatcher
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.client.Minecraft
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
+import kotlin.time.Duration.Companion.seconds
 
+@SkyHanniModule
 object PurseAPI {
     private val patternGroup = RepoPattern.group("data.purse")
+
+    /**
+     * REGEX-TEST: Piggy: §6423,085,766
+     * REGEX-TEST: Purse: §6423,085,776 §e(+5)
+     */
     val coinsPattern by patternGroup.pattern(
         "coins",
-        "(§.)*(Piggy|Purse): §6(?<coins>[\\d,.]+)( ?(§.)*\\([+-](?<earned>[\\d,.]+)\\)?|.*)?$"
-    )
-    val piggyPattern by patternGroup.pattern(
-        "piggy",
-        "Piggy: (?<coins>.*)"
+        "(?:§.)*(?:Piggy|Purse): §6(?<coins>[\\d,.]+)(?: ?(?:§.)*\\([+-](?<earned>[\\d,.]+)\\)?|.*)?$",
     )
 
-    private var inventoryCloseTime = 0L
+    /**
+     * REGEX-TEST: Piggy: §6423,085,766
+     */
+    val piggyPattern by patternGroup.pattern(
+        "piggy",
+        "Piggy: (?<coins>.*)",
+    )
+
+    private var inventoryCloseTime = SimpleTimeMark.farPast()
     var currentPurse = 0.0
         private set
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
-        inventoryCloseTime = System.currentTimeMillis()
+        inventoryCloseTime = SimpleTimeMark.now()
     }
 
-    @SubscribeEvent
-    fun onScoreboardChange(event: ScoreboardChangeEvent) {
-        event.newList.matchFirst(coinsPattern) {
+    @HandleEvent
+    fun onScoreboardChange(event: ScoreboardUpdateEvent) {
+        coinsPattern.firstMatcher(event.added) {
             val newPurse = group("coins").formatDouble()
             val diff = newPurse - currentPurse
             if (diff == 0.0) return
             currentPurse = newPurse
 
-            PurseChangeEvent(diff, getCause(diff)).postAndCatch()
+            PurseChangeEvent(diff, currentPurse, getCause(diff)).post()
         }
     }
 
@@ -50,20 +63,19 @@ object PurseAPI {
                 return PurseChangeCause.GAIN_TALISMAN_OF_COINS
             }
 
+            // TODO relic of coins support
             if (diff == 15.million || diff == 100.million) {
                 return PurseChangeCause.GAIN_DICE_ROLL
             }
 
             if (Minecraft.getMinecraft().currentScreen == null) {
-                val timeDiff = System.currentTimeMillis() - inventoryCloseTime
-                if (timeDiff > 2_000) {
+                if (inventoryCloseTime.passedSince() > 2.seconds) {
                     return PurseChangeCause.GAIN_MOB_KILL
                 }
             }
             return PurseChangeCause.GAIN_UNKNOWN
         } else {
-            val timeDiff = System.currentTimeMillis() - SlayerAPI.questStartTime
-            if (timeDiff < 1500) {
+            if (SlayerAPI.questStartTime.passedSince() < 1.5.seconds) {
                 return PurseChangeCause.LOSE_SLAYER_QUEST_STARTED
             }
 

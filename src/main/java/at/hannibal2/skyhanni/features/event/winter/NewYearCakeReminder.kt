@@ -1,28 +1,31 @@
 package at.hannibal2.skyhanni.features.event.winter
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.data.ProfileStorageData
 import at.hannibal2.skyhanni.data.ScoreboardData
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.SecondPassedEvent
 import at.hannibal2.skyhanni.features.fame.ReminderUtils
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.LorenzUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.SkyBlockTime
-import at.hannibal2.skyhanni.utils.StringUtils.matches
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
-class NewYearCakeReminder {
+@SkyHanniModule
+object NewYearCakeReminder {
 
     private val config get() = SkyHanniMod.feature.event.winter
     private val sidebarDetectionPattern by RepoPattern.pattern(
         "event.winter.newyearcake.reminder.sidebar",
-        "§dNew Year Event!§f (?<time>.*)"
+        "§dNew Year Event!§f (?<time>.*)",
     )
     private var lastReminderSend = SimpleTimeMark.farPast()
 
@@ -33,8 +36,8 @@ class NewYearCakeReminder {
         }
     }
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         //  cake already claimed
         if (event.inventoryName == "Baker") {
             markCakeClaimed()
@@ -61,12 +64,11 @@ class NewYearCakeReminder {
 
         if (lastReminderSend.passedSince() < 30.seconds) return
         lastReminderSend = SimpleTimeMark.now()
-
-        ChatUtils.clickableChat(
+        ChatUtils.clickToActionOrDisable(
             "Reminding you to grab the free New Year Cake. Click here to open the baker menu!",
-            onClick = {
-                HypixelCommands.openBaker()
-            }
+            config::newYearCakeReminder,
+            actionName = "open the baker menu",
+            action = { HypixelCommands.openBaker() },
         )
     }
 

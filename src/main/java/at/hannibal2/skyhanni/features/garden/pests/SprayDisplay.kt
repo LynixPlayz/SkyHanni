@@ -1,5 +1,6 @@
 package at.hannibal2.skyhanni.features.garden.pests
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.data.IslandType
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.IslandChangeEvent
@@ -12,6 +13,7 @@ import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.isSprayExpired
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.markExpiredSprayAsNotified
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.name
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.plots
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
@@ -20,7 +22,8 @@ import at.hannibal2.skyhanni.utils.TimeUtils.format
 import at.hannibal2.skyhanni.utils.TimeUtils.timerColor
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
-class SprayDisplay {
+@SkyHanniModule
+object SprayDisplay {
 
     private val config get() = PestAPI.config.spray
     private var display: String? = null
@@ -35,7 +38,7 @@ class SprayDisplay {
                     val timer = it.expiry.timeUntil()
                     "§eSprayed with §a${it.type.displayName} §7- ${timer.timerColor("§b")}${timer.format()}"
                 } ?: if (config.showNotSprayed) "§cNot sprayed!" else ""
-            } ?: ""
+            }.orEmpty()
         }
 
         if (config.expiryNotification) {
@@ -43,7 +46,7 @@ class SprayDisplay {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onIslandChange(event: IslandChangeEvent) {
         if (!LorenzUtils.inSkyBlock) return
         if (!config.expiryNotification || event.newIsland != IslandType.GARDEN) return

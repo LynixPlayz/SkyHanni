@@ -1,16 +1,18 @@
 package at.hannibal2.skyhanni.features.garden.farming.lane
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.CropClickEvent
 import at.hannibal2.skyhanni.events.GardenToolChangeEvent
-import at.hannibal2.skyhanni.events.farming.FarmingLaneSwitchEvent
+import at.hannibal2.skyhanni.events.garden.farming.FarmingLaneSwitchEvent
 import at.hannibal2.skyhanni.features.garden.CropType
 import at.hannibal2.skyhanni.features.garden.GardenAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.LorenzVec
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
+@SkyHanniModule
 object FarmingLaneAPI {
     val config get() = GardenAPI.config.farmingLane
 
@@ -18,12 +20,12 @@ object FarmingLaneAPI {
     var currentLane: FarmingLane? = null
     private var lastNoLaneWarning = SimpleTimeMark.farPast()
 
-    @SubscribeEvent
+    @HandleEvent
     fun onGardenToolChange(event: GardenToolChangeEvent) {
         currentLane = null
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onCropClick(event: CropClickEvent) {
         val crop = event.crop
         if (!GardenAPI.hasFarmingToolInHand()) return
@@ -36,11 +38,12 @@ object FarmingLaneAPI {
 
         if (currentLane == lane) return
         currentLane = lane
-        FarmingLaneSwitchEvent(lane).postAndCatch()
+        FarmingLaneSwitchEvent(lane).post()
     }
 
     private fun warnNoLane(crop: CropType?) {
         if (crop == null || currentLane != null) return
+        if (crop in config.ignoredCrops) return
         if (!GardenAPI.hasFarmingToolInHand()) return
         if (FarmingLaneCreator.detection) return
         if (!config.distanceDisplay && !config.laneSwitchNotification.enabled) return
@@ -50,9 +53,8 @@ object FarmingLaneAPI {
 
         ChatUtils.clickableChat(
             "No ${crop.cropName} lane defined yet! Use §e/shlanedetection",
-            onClick = {
-                FarmingLaneCreator.commandLaneDetection()
-            }
+            onClick = { FarmingLaneCreator.commandLaneDetection() },
+            "§eClick to run /shlanedetection!",
         )
     }
 

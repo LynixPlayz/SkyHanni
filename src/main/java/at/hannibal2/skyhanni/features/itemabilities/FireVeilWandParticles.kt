@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.itemabilities
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.config.features.itemability.FireVeilWandConfig.DisplayEntry
 import at.hannibal2.skyhanni.data.ClickType
@@ -8,22 +9,24 @@ import at.hannibal2.skyhanni.events.ItemClickEvent
 import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.ReceiveParticleEvent
 import at.hannibal2.skyhanni.features.nether.ashfang.AshfangFreezeCooldown
-import at.hannibal2.skyhanni.utils.ColorUtils.toChromaColor
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ConfigUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.NEUInternalName.Companion.asInternalName
+import at.hannibal2.skyhanni.utils.NEUInternalName.Companion.toInternalName
 import at.hannibal2.skyhanni.utils.RenderUtils
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
+import at.hannibal2.skyhanni.utils.SpecialColor.toSpecialColor
 import net.minecraft.client.Minecraft
 import net.minecraft.util.EnumParticleTypes
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
-class FireVeilWandParticles {
+@SkyHanniModule
+object FireVeilWandParticles {
 
     private val config get() = SkyHanniMod.feature.inventory.itemAbilities.fireVeilWands
-    private val item by lazy { "FIRE_VEIL_WAND".asInternalName() }
+    private val item = "FIRE_VEIL_WAND".toInternalName()
 
     private var lastClick = SimpleTimeMark.farPast()
 
@@ -33,17 +36,16 @@ class FireVeilWandParticles {
         if (config.display == DisplayEntry.PARTICLES) return
         if (lastClick.passedSince() > 5.5.seconds) return
         if (event.type == EnumParticleTypes.FLAME && event.speed == 0.55f) {
-            event.isCanceled = true
+            event.cancel()
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent(onlyOnSkyblock = true)
     fun onItemClick(event: ItemClickEvent) {
-        if (!LorenzUtils.inSkyBlock) return
         if (event.clickType != ClickType.RIGHT_CLICK) return
         val internalName = event.itemInHand?.getInternalName()
 
-        if (AshfangFreezeCooldown.iscurrentlyFrozen()) return
+        if (AshfangFreezeCooldown.isCurrentlyFrozen()) return
 
         if (internalName == item) {
             lastClick = SimpleTimeMark.now()
@@ -56,11 +58,11 @@ class FireVeilWandParticles {
         if (config.display != DisplayEntry.LINE) return
         if (lastClick.passedSince() > 5.5.seconds) return
 
-        val color = config.displayColor.toChromaColor()
+        val color = config.displayColor.toSpecialColor()
         RenderUtils.drawCircle(Minecraft.getMinecraft().thePlayer, event.partialTicks, 3.5, color)
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(3, "itemAbilities.fireVeilWandDisplayColor", "itemAbilities.fireVeilWands.displayColor")
         event.move(3, "itemAbilities.fireVeilWandDisplay", "itemAbilities.fireVeilWands.display")

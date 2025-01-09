@@ -1,11 +1,13 @@
 package at.hannibal2.skyhanni.features.slayer.blaze
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.events.BossHealthChangeEvent
 import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.features.combat.damageindicator.BossType
 import at.hannibal2.skyhanni.features.combat.damageindicator.DamageIndicatorManager
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.SoundUtils
@@ -13,7 +15,8 @@ import at.hannibal2.skyhanni.utils.SoundUtils.playSound
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
-class BlazeSlayerFirePitsWarning {
+@SkyHanniModule
+object BlazeSlayerFirePitsWarning {
 
     private val config get() = SkyHanniMod.feature.slayer.blazes
 
@@ -34,7 +37,7 @@ class BlazeSlayerFirePitsWarning {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onBossHealthChange(event: BossHealthChangeEvent) {
         if (!isEnabled()) return
         val entityData = event.entityData
@@ -67,7 +70,7 @@ class BlazeSlayerFirePitsWarning {
             BossType.SLAYER_BLAZE_TYPHOEUS_4,
         )
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(3, "slayer.firePitsWarning", "slayer.blazes.firePitsWarning")
     }

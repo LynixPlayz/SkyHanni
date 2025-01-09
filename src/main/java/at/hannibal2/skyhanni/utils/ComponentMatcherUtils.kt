@@ -6,8 +6,8 @@ package at.hannibal2.skyhanni.utils
 import at.hannibal2.skyhanni.utils.ComponentMatcherUtils.findStyledMatcher
 import at.hannibal2.skyhanni.utils.ComponentMatcherUtils.intoSpan
 import at.hannibal2.skyhanni.utils.ComponentMatcherUtils.matchStyledMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.findMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.findMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import net.minecraft.util.ChatComponentText
 import net.minecraft.util.ChatStyle
 import net.minecraft.util.IChatComponent
@@ -165,7 +165,7 @@ class ComponentSpan internal constructor(
      */
     fun slice(start: Int = 0, end: Int = length): ComponentSpan {
         require(0 <= start) { "start is bigger than 0: start=$start, cachedText=$cachedText" }
-        require(start <= end) { "start is bigger than length: start=$start, length=$length, cachedText=$cachedText" }
+        require(start <= end) { "start is bigger than end: start=$start, end=$end, cachedText=$cachedText" }
         require(end <= length) { "end is bigger than length: end=$end, length=$length, cachedText=$cachedText" }
         return ComponentSpan(textComponent, cachedText, this.start + start, this.start + end)
     }
@@ -249,9 +249,9 @@ class ComponentSpan internal constructor(
     fun intoComponent(): IChatComponent {
         val parent = ChatComponentText("")
         parent.chatStyle = ChatStyle()
-        sampleSlicedComponents().forEach {
-            val copy = ChatComponentText(it.first.unformattedTextForChat.substring(it.second, it.third))
-            copy.chatStyle = it.first.chatStyle.createDeepCopy()
+        for ((component, start, end) in sampleSlicedComponents()) {
+            val copy = ChatComponentText(component.unformattedTextForChat.substring(start, end))
+            copy.chatStyle = component.chatStyle.createDeepCopy()
             parent.appendSibling(copy)
         }
         return parent

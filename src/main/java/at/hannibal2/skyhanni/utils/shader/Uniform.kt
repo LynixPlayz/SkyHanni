@@ -1,7 +1,6 @@
 package at.hannibal2.skyhanni.utils.shader
 
 import java.util.Objects
-import java.util.function.Supplier
 
 /**
  * Class to handle shader uniform types
@@ -14,9 +13,10 @@ class Uniform<T>(
     shader: Shader,
     private val uniformType: UniformType<T>,
     val name: String,
-    private val uniformValuesSupplier: Supplier<T>,
+    private val uniformValuesSupplier: () -> T,
 ) {
 
+    @Suppress("UtilityClassWithPublicConstructor")
     class UniformType<T> {
         companion object {
 
@@ -24,6 +24,7 @@ class Uniform<T>(
             val VEC2: UniformType<FloatArray> = UniformType()
             val VEC3: UniformType<FloatArray> = UniformType()
             val BOOL: UniformType<Boolean> = UniformType()
+            val INT: UniformType<Int> = UniformType()
         }
     }
 
@@ -31,7 +32,7 @@ class Uniform<T>(
     private var previousUniformValue: T? = null
 
     fun update() {
-        val newUniformValue: T = uniformValuesSupplier.get()
+        val newUniformValue: T = uniformValuesSupplier()
         if (!Objects.deepEquals(previousUniformValue, newUniformValue)) {
             when (uniformType) {
                 UniformType.FLOAT -> {
@@ -49,6 +50,7 @@ class Uniform<T>(
                 }
 
                 UniformType.BOOL -> ShaderHelper.glUniform1f(uniformID, if (newUniformValue as Boolean) 1f else 0f)
+                UniformType.INT -> ShaderHelper.glUniform1i(uniformID, (newUniformValue as Int))
             }
             previousUniformValue = newUniformValue
         }

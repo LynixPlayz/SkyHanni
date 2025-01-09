@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.garden.contest
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.data.HypixelData
 import at.hannibal2.skyhanni.events.GuiContainerEvent
@@ -9,6 +10,7 @@ import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryUpdatedEvent
 import at.hannibal2.skyhanni.events.LorenzToolTipEvent
 import at.hannibal2.skyhanni.features.garden.GardenNextJacobContest
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.InventoryUtils.getUpperItems
@@ -18,10 +20,10 @@ import at.hannibal2.skyhanni.utils.KeyboardManager.isKeyHeld
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.OSUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.RenderUtils.drawSlotText
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
 import at.hannibal2.skyhanni.utils.SkyBlockTime
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.client.gui.inventory.GuiChest
@@ -31,7 +33,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class JacobFarmingContestsInventory {
+@SkyHanniModule
+object JacobFarmingContestsInventory {
 
     private val realTime = mutableMapOf<Int, String>()
 
@@ -46,13 +49,13 @@ class JacobFarmingContestsInventory {
         "§7§7You placed in the (?<medal>.*) §7bracket!"
     )
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         realTime.clear()
         hideEverything = true
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryUpdated(event: InventoryUpdatedEvent) {
         if (!LorenzUtils.inSkyBlock) return
         if (event.inventoryName != "Your Contests") return
@@ -82,6 +85,7 @@ class JacobFarmingContestsInventory {
 
     @SubscribeEvent
     fun onSlotClick(event: GuiContainerEvent.SlotClickEvent) {
+        // TODO add tooltip line "click + press <keybind> to open on elite website
         if (!config.openOnElite.isKeyHeld()) return
         if (!LorenzUtils.inSkyBlock) return
 
@@ -92,12 +96,12 @@ class JacobFarmingContestsInventory {
             "Your Contests" -> {
                 val (year, month, day) = FarmingContestAPI.getSbDateFromItemName(itemName) ?: return
                 openContest(year, month, day)
-                event.isCanceled = true
+                event.cancel()
             }
 
             "Jacob's Farming Contests" -> {
                 openFromJacobMenu(itemName)
-                event.isCanceled = true
+                event.cancel()
             }
 
             else -> {
@@ -153,7 +157,7 @@ class JacobFarmingContestsInventory {
                 OSUtils.openBrowser("https://elitebot.dev/contests/upcoming#$timestamp")
                 ChatUtils.chat("Opening upcoming contests in elitebot.dev")
             }
-            event.isCanceled = true
+            event.cancel()
         }
     }
 
@@ -193,7 +197,7 @@ class JacobFarmingContestsInventory {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRenderItemOverlayPost(event: GuiRenderItemEvent.RenderOverlayEvent.GuiRenderItemPost) {
         if (!LorenzUtils.inSkyBlock) return
         if (!config.medalIcon) return
@@ -224,7 +228,7 @@ class JacobFarmingContestsInventory {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(
             3,

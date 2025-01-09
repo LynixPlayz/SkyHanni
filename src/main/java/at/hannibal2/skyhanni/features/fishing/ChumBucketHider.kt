@@ -1,20 +1,24 @@
 package at.hannibal2.skyhanni.features.fishing
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.CheckRenderEntityEvent
 import at.hannibal2.skyhanni.events.ConfigLoadEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ConditionalUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.name
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.TimeLimitedSet
+import at.hannibal2.skyhanni.utils.compat.getWholeInventory
 import at.hannibal2.skyhanni.utils.getLorenzVec
 import net.minecraft.entity.Entity
 import net.minecraft.entity.item.EntityArmorStand
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
-class ChumBucketHider {
+@SkyHanniModule
+object ChumBucketHider {
 
     private val config get() = SkyHanniMod.feature.fishing.chumBucketHider
     private val titleEntity = TimeLimitedSet<Entity>(5.seconds)
@@ -25,16 +29,14 @@ class ChumBucketHider {
         reset()
     }
 
-    @SubscribeEvent
-    fun onCheckRender(event: CheckRenderEntityEvent<*>) {
-        if (!LorenzUtils.inSkyBlock) return
+    @HandleEvent(onlyOnSkyblock = true)
+    fun onCheckRender(event: CheckRenderEntityEvent<EntityArmorStand>) {
         if (!config.enabled.get()) return
 
         val entity = event.entity
-        if (entity !is EntityArmorStand) return
 
         if (entity in hiddenEntities) {
-            event.isCanceled = true
+            event.cancel()
             return
         }
 
@@ -45,36 +47,40 @@ class ChumBucketHider {
             if (name.contains(LorenzUtils.getPlayerName()) && !config.hideOwn.get()) return
             titleEntity.add(entity)
             hiddenEntities.add(entity)
-            event.isCanceled = true
+            event.cancel()
             return
         }
 
         // Second text line
         if (name.contains("/10 §aChums")) {
             val entityLocation = entity.getLorenzVec()
-            for (title in titleEntity.toSet()) {
+            for (title in titleEntity) {
                 if (entityLocation.equalsIgnoreY(title.getLorenzVec())) {
                     hiddenEntities.add(entity)
-                    event.isCanceled = true
+                    event.cancel()
                     return
                 }
             }
         }
 
         // Chum Bucket
-        if (config.hideBucket.get() && entity.inventory.any { it != null && (it.name == "§fEmpty Chum Bucket" || it.name == "§aEmpty Chumcap Bucket") }) {
+        if (config.hideBucket.get() &&
+            entity.getWholeInventory().any {
+                it != null && (it.name == "§fEmpty Chum Bucket" || it.name == "§aEmpty Chumcap Bucket")
+            }
+        ) {
             val entityLocation = entity.getLorenzVec()
-            for (title in titleEntity.toSet()) {
+            for (title in titleEntity) {
                 if (entityLocation.equalsIgnoreY(title.getLorenzVec())) {
                     hiddenEntities.add(entity)
-                    event.isCanceled = true
+                    event.cancel()
                     return
                 }
             }
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigLoad(event: ConfigLoadEvent) {
         ConditionalUtils.onToggle(config.enabled, config.hideBucket, config.hideOwn) { reset() }
     }

@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.slayer.blaze
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.config.core.config.gui.GuiPositionEditor
 import at.hannibal2.skyhanni.config.features.slayer.blaze.BlazeHellionConfig.FirstDaggerEntry
@@ -10,34 +11,40 @@ import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.events.TitleReceivedEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ConfigUtils
+import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.ItemUtils.name
 import at.hannibal2.skyhanni.utils.LocationUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.getLorenzVec
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraft.client.Minecraft
 import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
-class BlazeSlayerDaggerHelper {
+@SkyHanniModule
+object BlazeSlayerDaggerHelper {
 
     private val config get() = SkyHanniMod.feature.slayer.blazes.hellion
 
     private val attunementPattern by RepoPattern.pattern(
         "slayer.blaze.dagger.attunement",
-        "§cStrike using the §r(.+) §r§cattunement on your dagger!"
+        "§cStrike using the §r.+ §r§cattunement on your dagger!"
     )
 
     private var clientSideClicked = false
     private var textTop = ""
     private var textBottom = ""
 
-    private var lastDaggerCheck = 0L
-    private var lastNearestCheck = 0L
+    private var lastDaggerCheck = SimpleTimeMark.farPast()
+    private var lastNearestCheck = SimpleTimeMark.farPast()
     private var lastNearest: HellionShield? = null
 
     @SubscribeEvent
@@ -55,8 +62,7 @@ class BlazeSlayerDaggerHelper {
     fun onTick(event: LorenzTickEvent) {
         if (!isEnabled()) return
 
-        val player = Minecraft.getMinecraft().thePlayer
-        val dagger = getDaggerFromStack(player.inventory.mainInventory[player.inventory.currentItem])
+        val dagger = getDaggerFromStack(InventoryUtils.getItemInHand())
         if (dagger != null) {
             setDaggerText(dagger)
             return
@@ -80,8 +86,8 @@ class BlazeSlayerDaggerHelper {
     private fun findNearest(): HellionShield? {
         if (!config.markRightHellionShield) return null
 
-        if (lastNearestCheck + 100 > System.currentTimeMillis()) return lastNearest
-        lastNearestCheck = System.currentTimeMillis()
+        if (lastNearestCheck.passedSince() < 100.milliseconds) return lastNearest
+        lastNearestCheck = SimpleTimeMark.now()
 
         val playerLocation = LocationUtils.playerLocation()
         return HellionShieldHelper.hellionShieldMobs
@@ -124,8 +130,8 @@ class BlazeSlayerDaggerHelper {
     }
 
     private fun checkActiveDagger() {
-        if (lastDaggerCheck + 1_000 > System.currentTimeMillis()) return
-        lastDaggerCheck = System.currentTimeMillis()
+        if (lastDaggerCheck.passedSince() < 1.seconds) return
+        lastDaggerCheck = SimpleTimeMark.now()
 
         for (dagger in Dagger.entries) {
             if (dagger.updated) continue
@@ -145,8 +151,7 @@ class BlazeSlayerDaggerHelper {
     }
 
     private fun readFromInventory(dagger: Dagger): HellionShield? {
-        val player = Minecraft.getMinecraft().thePlayer
-        for (stack in player.inventory.mainInventory) {
+        for (stack in InventoryUtils.getItemsInOwnInventory()) {
             val otherDagger = getDaggerFromStack(stack) ?: continue
             if (dagger != otherDagger) continue
             for (line in stack.getLore()) {
@@ -164,7 +169,7 @@ class BlazeSlayerDaggerHelper {
     }
 
     private fun getDaggerFromStack(stack: ItemStack?): Dagger? {
-        val itemName = stack?.name ?: ""
+        val itemName = stack?.name.orEmpty()
         for (dagger in Dagger.entries) {
             if (dagger.daggerNames.any { itemName.contains(it) }) {
                 return dagger
@@ -174,19 +179,18 @@ class BlazeSlayerDaggerHelper {
         return null
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onTitleReceived(event: TitleReceivedEvent) {
         if (!isEnabled()) return
 
-
         for (shield in HellionShield.entries) {
             if (shield.formattedName + "§r" == event.title) {
-                Dagger.entries.filter { shield in it.shields }.forEach {
-                    it.shields.forEach { shield -> shield.active = false }
-                    it.updated = true
+                for (dagger in Dagger.entries.filter { shield in it.shields }) {
+                    dagger.shields.forEach { it.active = false }
+                    dagger.updated = true
                 }
                 shield.active = true
-                event.isCanceled = true
+                event.cancel()
                 clientSideClicked = false
                 return
             }
@@ -197,7 +201,7 @@ class BlazeSlayerDaggerHelper {
         return LorenzUtils.inSkyBlock && config.daggers
     }
 
-    @SubscribeEvent
+    @HandleEvent(onlyOnSkyblock = true)
     fun onBlockClick(event: BlockClickEvent) {
         if (!isEnabled()) return
         if (clientSideClicked) return
@@ -213,12 +217,12 @@ class BlazeSlayerDaggerHelper {
         TWILIGHT(
             listOf("Twilight Dagger", "Mawdredge Dagger", "Deathripper Dagger"),
             HellionShield.SPIRIT,
-            HellionShield.CRYSTAL
+            HellionShield.CRYSTAL,
         ),
         FIREDUST(
             listOf("Firedust Dagger", "Kindlebane Dagger", "Pyrochaos Dagger"),
             HellionShield.ASHEN,
-            HellionShield.AURIC
+            HellionShield.AURIC,
         ),
         ;
 
@@ -250,7 +254,7 @@ class BlazeSlayerDaggerHelper {
         config.positionBottom.renderString(textBottom, posLabel = "Blaze Slayer Dagger Bottom")
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(3, "slayer.blazeDaggers", "slayer.blazes.hellion.daggers")
         event.move(3, "slayer.blazeMarkRightHellionShield", "slayer.blazes.hellion.markRightHellionShield")

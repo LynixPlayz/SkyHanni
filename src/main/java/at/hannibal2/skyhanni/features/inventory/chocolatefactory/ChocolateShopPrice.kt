@@ -1,49 +1,72 @@
 package at.hannibal2.skyhanni.features.inventory.chocolatefactory
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.SecondPassedEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.DisplayTableEntry
+import at.hannibal2.skyhanni.utils.ItemPriceUtils.getPrice
+import at.hannibal2.skyhanni.utils.ItemPriceUtils.getPriceOrNull
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.ItemUtils.itemName
 import at.hannibal2.skyhanni.utils.ItemUtils.loreCosts
 import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.LorenzUtils.groupOrNull
 import at.hannibal2.skyhanni.utils.NEUInternalName
-import at.hannibal2.skyhanni.utils.NEUItems.getPrice
-import at.hannibal2.skyhanni.utils.NEUItems.getPriceOrNull
-import at.hannibal2.skyhanni.utils.NumberUtil
+import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
+import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
 import at.hannibal2.skyhanni.utils.NumberUtil.million
+import at.hannibal2.skyhanni.utils.NumberUtil.shortFormat
+import at.hannibal2.skyhanni.utils.RegexUtils.firstMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.groupOrNull
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.renderRenderables
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.StringUtils.addStrikethorugh
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.UtilsPatterns
 import at.hannibal2.skyhanni.utils.renderables.Renderable
 import net.minecraft.item.ItemStack
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
+@SkyHanniModule
 object ChocolateShopPrice {
     private val config get() = ChocolateFactoryAPI.config.chocolateShopPrice
 
     private var display = emptyList<Renderable>()
     private var products = emptyList<Product>()
 
-    private val menuNamePattern by ChocolateFactoryAPI.patternGroup.pattern(
+    val menuNamePattern by ChocolateFactoryAPI.patternGroup.pattern(
         "shop.title",
-        "Chocolate Shop"
+        "Chocolate Shop",
     )
+
+    /**
+     * REGEX-TEST: §aYou bought §r§aSupreme Chocolate Bar§r§a!
+     * REGEX-TEST: §aYou bought §r§aSupreme Chocolate Bar§r§8 x5§r§a!
+     */
     private val itemBoughtPattern by ChocolateFactoryAPI.patternGroup.pattern(
         "shop.bought",
-        "§aYou bought §r§.(?<item>[\\w ]+)§r(?:§8 x(?<amount>\\d+)§r)?§a!"
+        "§aYou bought §r§.(?<item>[\\w ]+)§r(?:§8 x(?<amount>\\d+)§r)?§a!",
+    )
+
+    /**
+     * REGEX-TEST: §7Chocolate Spent: §60
+     */
+    private val chocolateSpentPattern by ChocolateFactoryAPI.patternGroup.pattern(
+        "shop.spent",
+        "§7Chocolate Spent: §6(?<amount>[\\d,]+)",
     )
 
     var inInventory = false
     private var callUpdate = false
     var inventoryItems = emptyMap<Int, ItemStack>()
+
+    private const val MILESTONE_INDEX = 50
+    private var chocolateSpent = 0L
 
     @SubscribeEvent
     fun onSecondPassed(event: SecondPassedEvent) {
@@ -52,8 +75,8 @@ object ChocolateShopPrice {
         }
     }
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!isEnabled()) return
         val isInShop = menuNamePattern.matches(event.inventoryName)
         val isInShopOptions = UtilsPatterns.shopOptionsPattern.matches(event.inventoryName)
@@ -74,14 +97,21 @@ object ChocolateShopPrice {
     private fun updateProducts() {
         val newProducts = mutableListOf<Product>()
         for ((slot, item) in inventoryItems) {
-
             val lore = item.getLore()
+
+            if (slot == MILESTONE_INDEX) {
+                chocolateSpentPattern.firstMatcher(lore) {
+                    chocolateSpent = group("amount").formatLong()
+                }
+            }
+
             val chocolate = ChocolateFactoryAPI.getChocolateBuyCost(lore) ?: continue
             val internalName = item.getInternalName()
             val itemPrice = internalName.getPriceOrNull() ?: continue
             val otherItemsPrice = item.loreCosts().sumOf { it.getPrice() }.takeIf { it != 0.0 }
+            val canBeBought = lore.any { it == "§eClick to trade!" }
 
-            newProducts.add(Product(slot, item.itemName, internalName, chocolate, itemPrice, otherItemsPrice))
+            newProducts.add(Product(slot, item.itemName, internalName, chocolate, itemPrice, otherItemsPrice, canBeBought))
         }
         products = newProducts
     }
@@ -97,46 +127,53 @@ object ChocolateShopPrice {
 
             val profit = product.itemPrice - (product.otherItemPrice ?: 0.0)
             val factor = (profit / product.chocolate) * multiplier
-            val perFormat = NumberUtil.format(factor)
+            val perFormat = factor.shortFormat()
 
             val hover = buildList {
                 add(product.name)
 
                 add("")
-                add("§7Item price: §6${NumberUtil.format(product.itemPrice)} ")
+                add("§7Item price: §6${product.itemPrice.shortFormat()} ")
                 product.otherItemPrice?.let {
-                    add("§7Additional cost: §6${NumberUtil.format(it)} ")
+                    add("§7Additional cost: §6${it.shortFormat()} ")
                 }
-                add("§7Profit per purchase: §6${NumberUtil.format(profit)} ")
+                add("§7Profit per purchase: §6${profit.shortFormat()} ")
                 add("")
-                add("§7Chocolate amount: §c${NumberUtil.format(product.chocolate)} ")
-                add("§7Profit per million chocolate: §6${perFormat} ")
+                add("§7Chocolate amount: §c${product.chocolate.shortFormat()} ")
+                add("§7Profit per million chocolate: §6$perFormat ")
                 add("")
                 val formattedTimeUntilGoal = ChocolateAmount.CURRENT.formattedTimeUntilGoal(product.chocolate)
                 add("§7Time until affordable: §6$formattedTimeUntilGoal ")
+
+                if (!product.canBeBought) {
+                    add("")
+                    add("§cCannot be bought!")
+                }
             }
             table.add(
                 DisplayTableEntry(
-                    "${product.name}§f:",
+                    product.name.addStrikethorugh(!product.canBeBought),
                     "§6§l$perFormat",
                     factor,
                     product.item,
                     hover,
-                    highlightsOnHoverSlots = product.slot?.let { listOf(it) } ?: emptyList()
-                )
+                    highlightsOnHoverSlots = product.slot?.let { listOf(it) }.orEmpty(),
+                ),
             )
         }
 
-        val newList = mutableListOf<Renderable>()
-        newList.add(Renderable.string("§e§lCoins per million chocolate§f:"))
-        // TODO update this value every second
-        // TODO add time until can afford
-        newList.add(Renderable.string("§eChocolate available: §6${ChocolateAmount.CURRENT.formatted}"))
-        newList.add(LorenzUtils.fillTable(table, padding = 5, itemScale = config.itemScale))
-        display = newList
+        display = buildList {
+            add(Renderable.string("§e§lCoins per million chocolate§f:"))
+            // TODO update this value every second
+            // TODO add time until can afford
+            add(Renderable.string("§eChocolate available: §6${ChocolateAmount.CURRENT.formatted}"))
+            // TODO add chocolate spend needed for next milestone
+            add(Renderable.string("§eChocolate spent: §6${chocolateSpent.addSeparators()}"))
+            add(LorenzUtils.fillTable(table, padding = 5, itemScale = config.itemScale))
+        }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         inInventory = false
         callUpdate = false
@@ -148,7 +185,7 @@ object ChocolateShopPrice {
             config.position.renderRenderables(
                 display,
                 extraSpace = 5,
-                posLabel = "Chocolate Shop Price"
+                posLabel = "Chocolate Shop Price",
             )
         }
     }
@@ -176,5 +213,6 @@ object ChocolateShopPrice {
         val chocolate: Long,
         val itemPrice: Double,
         val otherItemPrice: Double?,
+        val canBeBought: Boolean,
     )
 }

@@ -1,7 +1,8 @@
 package at.hannibal2.skyhanni.features.bingo.card
 
 import at.hannibal2.skyhanni.SkyHanniMod
-import at.hannibal2.skyhanni.data.jsonobjects.repo.BingoJson
+import at.hannibal2.skyhanni.api.event.HandleEvent
+import at.hannibal2.skyhanni.data.jsonobjects.repo.BingoData
 import at.hannibal2.skyhanni.events.InventoryUpdatedEvent
 import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.bingo.BingoCardUpdateEvent
@@ -10,19 +11,21 @@ import at.hannibal2.skyhanni.features.bingo.BingoAPI
 import at.hannibal2.skyhanni.features.bingo.card.goals.BingoGoal
 import at.hannibal2.skyhanni.features.bingo.card.goals.GoalType
 import at.hannibal2.skyhanni.features.bingo.card.goals.HiddenGoalData
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.ItemUtils.name
 import at.hannibal2.skyhanni.utils.LorenzUtils
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.TimeUtils
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration
 
-class BingoCardReader {
+@SkyHanniModule
+object BingoCardReader {
 
     private val config get() = SkyHanniMod.feature.event.bingo.bingoCard
     private val patternGroup = RepoPattern.group("bingo.card")
@@ -39,7 +42,7 @@ class BingoCardReader {
         ".*§7§eThe next hint will unlock in (?<time>.*)"
     )
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryUpdated(event: InventoryUpdatedEvent) {
         if (!config.enabled) return
         if (event.inventoryName != "Bingo Card") return
@@ -71,7 +74,7 @@ class BingoCardReader {
             }
 
             val done = lore.any { it.contains("GOAL REACHED") }
-            val communtyGoalPercentage = readCommuntyGoalPercentage(lore)
+            val communityGoalPercentage = readCommunityGoalPercentage(lore)
             val hiddenGoalData = getHiddenGoalData(name, description, goalType)
             val visualDescription = hiddenGoalData.tipNote
 
@@ -87,14 +90,14 @@ class BingoCardReader {
                 this.done = done
                 this.hiddenGoalData = hiddenGoalData
             }
-            communtyGoalPercentage?.let {
+            communityGoalPercentage?.let {
                 bingoGoalDifference(bingoGoal, it)
                 bingoGoal.communtyGoalPercentage = it
             }
         }
         BingoAPI.lastBingoCardOpenTime = SimpleTimeMark.now()
 
-        BingoCardUpdateEvent().postAndCatch()
+        BingoCardUpdateEvent.post()
     }
 
     private fun bingoGoalDifference(bingoGoal: BingoGoal, new: Double) {
@@ -109,7 +112,7 @@ class BingoCardReader {
         ChatUtils.chat("$color${bingoGoal.displayName}: $oldFormat §b->" + " $newFormat")
     }
 
-    private fun readCommuntyGoalPercentage(lore: List<String>): Double? {
+    private fun readCommunityGoalPercentage(lore: List<String>): Double? {
         for (line in lore) {
             percentagePattern.matchMatcher(line) {
                 return group("percentage").toDouble() / 100
@@ -160,9 +163,9 @@ class BingoCardReader {
 
         val goal = BingoAPI.personalGoals.firstOrNull { it.displayName == name } ?: return
         goal.done = true
-        BingoGoalReachedEvent(goal).postAndCatch()
-        BingoCardUpdateEvent().postAndCatch()
+        BingoGoalReachedEvent(goal).post()
+        BingoCardUpdateEvent.post()
     }
 
-    private fun BingoJson.BingoData.getDescriptionLine() = "§7" + note.joinToString(" ")
+    private fun BingoData.getDescriptionLine() = "§7" + note.joinToString(" ")
 }

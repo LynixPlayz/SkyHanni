@@ -67,17 +67,14 @@ class RiftWiltedBerberisHelper {
     fun onBlockClick(event: BlockClickEvent) {
         if (!isEnabled()) return
         if (!hasFarmingToolInHand) return
-
         val location = event.position
         val berberis = nearestBerberis(location)
-
         if (event.clickType == ClickType.LEFT_CLICK) {
             if (berberis == null) {
                 list = list.editCopy { add(WiltedBerberis(location)) }
                 println("added wilted berberis")
                 return
             }
-
             with(berberis) {
                 if (moving) {
                     previous = location
@@ -170,23 +167,20 @@ class RiftWiltedBerberisHelper {
 
     fun getAveragePosition(blockPosList: List<BlockPos>): BlockPos? {
         if (blockPosList.isEmpty()) return null
-
         var sumX = 0
         var sumY = 0
         var sumZ = 0
-
         for (blockPos in blockPosList) {
             sumX += blockPos.x
             sumY += blockPos.y
             sumZ += blockPos.z
         }
-
         val averageX = sumX / blockPosList.size
         val averageY = sumY / blockPosList.size
         val averageZ = sumZ / blockPosList.size
-
         return BlockPos(averageX, averageY, averageZ)
     }
+
 
     private fun axisAlignedBB(loc: LorenzVec) = loc.add(0.1, -0.1, 0.1).boundingToOffset(0.8, 1.0, 0.8).expandBlock()
 

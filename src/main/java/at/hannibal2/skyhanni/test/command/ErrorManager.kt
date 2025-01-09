@@ -1,9 +1,13 @@
 package at.hannibal2.skyhanni.test.command
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
+import at.hannibal2.skyhanni.data.jsonobjects.repo.ChangedChatErrorsJson
+import at.hannibal2.skyhanni.data.jsonobjects.repo.RepoErrorData
+import at.hannibal2.skyhanni.events.RepositoryReloadEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.KeyboardManager
-import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.OSUtils
 import at.hannibal2.skyhanni.utils.StringUtils
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
@@ -11,12 +15,14 @@ import at.hannibal2.skyhanni.utils.TimeLimitedSet
 import net.minecraft.client.Minecraft
 import kotlin.time.Duration.Companion.minutes
 
+@SkyHanniModule
 object ErrorManager {
 
     // random id -> error message
     private val errorMessages = mutableMapOf<String, String>()
     private val fullErrorMessages = mutableMapOf<String, String>()
-    private var cache = TimeLimitedSet<Pair<String, Int>>(10.minutes)
+    private val cache = TimeLimitedSet<Pair<String, Int>>(10.minutes)
+    private var repoErrors: List<RepoErrorData> = emptyList()
 
     private val breakAfter = listOf(
         "at at.hannibal2.skyhanni.config.commands.Commands\$createCommand",
@@ -27,7 +33,7 @@ object ErrorManager {
 
     private val replace = mapOf(
         "at.hannibal2.skyhanni" to "SH",
-        "io.mouberry,notenoughupdates" to "NEU",
+        "io.moulberry.notenoughupdates" to "NEU",
         "net.minecraft." to "MC.",
         "net.minecraftforge.fml." to "FML.",
     )
@@ -49,6 +55,8 @@ object ErrorManager {
         "at at.hannibal2.skyhanni.config.commands.Commands\$createCommand\$1.processCommand",
         "at at.hannibal2.skyhanni.test.command.ErrorManager.logError",
         "at at.hannibal2.skyhanni.events.LorenzEvent.postAndCatch",
+        "at at.hannibal2.skyhanni.api.event.SkyHanniEvent.post",
+        "at at.hannibal2.skyhanni.api.event.EventHandler.post",
         "at net.minecraft.launchwrapper.",
     )
 
@@ -72,10 +80,12 @@ object ErrorManager {
             errorMessages[errorId]
         }
         val name = if (fullErrorMessage) "Full error" else "Error"
-        ChatUtils.chat(errorMessage?.let {
-            OSUtils.copyToClipboard(it)
-            "$name copied into the clipboard, please report it on the SkyHanni discord!"
-        } ?: "Error id not found!")
+        ChatUtils.chat(
+            errorMessage?.let {
+                OSUtils.copyToClipboard(it)
+                "$name copied into the clipboard, please report it on the SkyHanni discord!"
+            } ?: "Error id not found!",
+        )
     }
 
     fun logErrorStateWithData(
@@ -85,6 +95,7 @@ object ErrorManager {
         ignoreErrorCache: Boolean = false,
         noStackTrace: Boolean = false,
         betaOnly: Boolean = false,
+        condition: () -> Boolean = { true },
     ) {
         logError(
             IllegalStateException(internalMessage),
@@ -93,6 +104,7 @@ object ErrorManager {
             noStackTrace,
             *extraData,
             betaOnly = betaOnly,
+            condition = condition,
         )
     }
 
@@ -114,8 +126,9 @@ object ErrorManager {
         noStackTrace: Boolean,
         vararg extraData: Pair<String, Any?>,
         betaOnly: Boolean = false,
+        condition: () -> Boolean = { true },
     ) {
-        if (betaOnly && !LorenzUtils.isBetaVersion()) return
+        if (betaOnly && !SkyHanniMod.isBetaVersion) return
         if (!ignoreErrorCache) {
             val pair = if (throwable.stackTrace.isNotEmpty()) {
                 throwable.stackTrace[0].let { (it.fileName ?: "<unknown>") to it.lineNumber }
@@ -123,6 +136,7 @@ object ErrorManager {
             if (pair in cache) return
             cache.add(pair)
         }
+        if (!condition()) return
 
         Error(message, throwable).printStackTrace()
         Minecraft.getMinecraft().thePlayer ?: return
@@ -141,18 +155,60 @@ object ErrorManager {
 
         val extraDataString = buildExtraDataString(extraData)
         val rawMessage = message.removeColor()
-        errorMessages[randomId] =
-            "```\nSkyHanni ${SkyHanniMod.version}: $rawMessage\n \n$stackTrace\n$extraDataString```"
+        errorMessages[randomId] = "```\nSkyHanni ${SkyHanniMod.VERSION}: $rawMessage\n \n$stackTrace\n$extraDataString```"
         fullErrorMessages[randomId] =
-            "```\nSkyHanni ${SkyHanniMod.version}: $rawMessage\n(full stack trace)\n \n$fullStackTrace\n$extraDataString```"
+            "```\nSkyHanni ${SkyHanniMod.VERSION}: $rawMessage\n(full stack trace)\n \n$fullStackTrace\n$extraDataString```"
 
+        val finalMessage = buildFinalMessage(message) ?: return
         ChatUtils.clickableChat(
-            "§c[SkyHanni-${SkyHanniMod.version}]: $message§c. Click here to copy the error into the clipboard.",
-            onClick = {
-                copyError(randomId)
-            },
-            prefix = false
+            "§c[SkyHanni-${SkyHanniMod.VERSION}]: $finalMessage Click here to copy the error into the clipboard.",
+            onClick = { copyError(randomId) },
+            "§eClick to copy!",
+            prefix = false,
         )
+    }
+
+    private fun buildFinalMessage(message: String): String? {
+        var finalMessage = message
+        val rawMessage = message.removeColor()
+
+        var hideError = false
+        for (repoError in repoErrors) {
+            for (string in repoError.messageStartsWith) {
+                if (rawMessage.startsWith(string)) {
+                    hideError = true
+                }
+            }
+            for (string in repoError.messageExact) {
+                if (rawMessage == string) {
+                    hideError = true
+                }
+            }
+            if (hideError) {
+                repoError.replaceMessage?.let {
+                    finalMessage = it
+                    hideError = false
+                }
+                repoError.customMessage?.let {
+                    ChatUtils.userError(it)
+                    return null
+                }
+                break
+            }
+        }
+
+        if (finalMessage.last() !in ".?!") {
+            finalMessage += "§c."
+        }
+        return if (hideError) null else finalMessage
+    }
+
+    @HandleEvent
+    fun onRepoReload(event: RepositoryReloadEvent) {
+        val data = event.getConstant<ChangedChatErrorsJson>("ChangedChatErrors")
+        val version = SkyHanniMod.modVersion
+
+        repoErrors = data.changedErrorMessages.filter { it.fixedIn == null || version < it.fixedIn }
     }
 
     private fun buildExtraDataString(extraData: Array<out Pair<String, Any?>>): String {

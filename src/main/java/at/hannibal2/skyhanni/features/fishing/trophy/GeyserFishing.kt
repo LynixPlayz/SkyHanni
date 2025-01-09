@@ -6,20 +6,21 @@ import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
 import at.hannibal2.skyhanni.events.ReceiveParticleEvent
 import at.hannibal2.skyhanni.features.fishing.FishingAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.LocationUtils.distanceTo
 import at.hannibal2.skyhanni.utils.LocationUtils.distanceToPlayerIgnoreY
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils.isInIsland
 import at.hannibal2.skyhanni.utils.LorenzVec
-import at.hannibal2.skyhanni.utils.RenderUtils.drawFilledBoundingBox_nea
-import at.hannibal2.skyhanni.utils.SpecialColour
+import at.hannibal2.skyhanni.utils.RenderUtils.drawFilledBoundingBoxNea
+import at.hannibal2.skyhanni.utils.SpecialColor.toSpecialColor
 import net.minecraft.util.AxisAlignedBB
 import net.minecraft.util.EnumParticleTypes
 import net.minecraftforge.fml.common.eventhandler.EventPriority
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
-import java.awt.Color
 
-class GeyserFishing {
+@SkyHanniModule
+object GeyserFishing {
     private val config get() = SkyHanniMod.feature.fishing.trophyFishing.geyserOptions
 
     private val geyserOffset = LorenzVec(0.1f, 0.6f, 0.1f)
@@ -38,7 +39,7 @@ class GeyserFishing {
 
         geyserBox = AxisAlignedBB(
             potentialGeyser.x - 2, 118.0 - 0.1, potentialGeyser.z - 2,
-            potentialGeyser.x + 2, 118.0 - 0.09, potentialGeyser.z + 2
+            potentialGeyser.x + 2, 118.0 - 0.09, potentialGeyser.z + 2,
         )
 
         if (config.hideParticles && FishingAPI.bobber != null) {
@@ -61,8 +62,8 @@ class GeyserFishing {
         if (!IslandType.CRIMSON_ISLE.isInIsland()) return
         if (config.onlyWithRod && !FishingAPI.holdingLavaRod) return
 
-        val color = Color(SpecialColour.specialToChromaRGB(config.boxColor), true)
-        event.drawFilledBoundingBox_nea(geyserBox, color)
+        val color = config.boxColor.toSpecialColor()
+        event.drawFilledBoundingBoxNea(geyserBox, color)
     }
 
     private fun hideGeyserParticles(event: ReceiveParticleEvent) {
@@ -70,7 +71,7 @@ class GeyserFishing {
         val geyser = geyser ?: return
 
         if (bobber.distanceTo(event.location) < 3 && bobber.distanceTo(geyser) < 3) {
-            event.isCanceled = true
+            event.cancel()
         }
     }
 

@@ -1,46 +1,40 @@
 package at.hannibal2.skyhanni.features.fishing.tracker
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.ConfigLoadEvent
-import at.hannibal2.skyhanni.events.FishingBobberCastEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
-import at.hannibal2.skyhanni.events.LorenzTickEvent
+import at.hannibal2.skyhanni.events.ProfileJoinEvent
 import at.hannibal2.skyhanni.events.SeaCreatureFishEvent
+import at.hannibal2.skyhanni.events.fishing.FishingBobberCastEvent
 import at.hannibal2.skyhanni.features.fishing.FishingAPI
 import at.hannibal2.skyhanni.features.fishing.SeaCreatureManager
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.test.command.ErrorManager
-import at.hannibal2.skyhanni.utils.CollectionUtils.addAsSingletonList
+import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.CollectionUtils.addOrPut
+import at.hannibal2.skyhanni.utils.CollectionUtils.addSearchString
 import at.hannibal2.skyhanni.utils.CollectionUtils.sumAllValues
 import at.hannibal2.skyhanni.utils.ConditionalUtils
-import at.hannibal2.skyhanni.utils.InventoryUtils
-import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
 import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.LorenzUtils.addButton
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
-import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.StringUtils.allLettersFirstUppercase
-import at.hannibal2.skyhanni.utils.StringUtils.matches
-import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
+import at.hannibal2.skyhanni.utils.renderables.RenderableUtils.addButton
+import at.hannibal2.skyhanni.utils.renderables.Searchable
 import at.hannibal2.skyhanni.utils.tracker.SkyHanniTracker
 import at.hannibal2.skyhanni.utils.tracker.TrackerData
 import com.google.gson.annotations.Expose
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
-import kotlin.time.Duration.Companion.seconds
 
+@SkyHanniModule
 object SeaCreatureTracker {
+    private var needMigration = true
 
     private val config get() = SkyHanniMod.feature.fishing.seaCreatureTracker
 
-    private val trophyArmorNames by RepoPattern.pattern(
-        "fishing.trophyfishing.armor",
-        "(BRONZE|SILVER|GOLD|DIAMOND)_HUNTER_(HELMET|CHESTPLATE|LEGGINGS|BOOTS)"
-    )
-
-    private val tracker = SkyHanniTracker("Sea Creature Tracker", { Data() }, { it.fishing.seaCreatureTracker })
-    { drawDisplay(it) }
-    private var lastArmorCheck = SimpleTimeMark.farPast()
-    private var isTrophyFishing = false
+    private val tracker = SkyHanniTracker("Sea Creature Tracker", { Data() }, { it.fishing.seaCreatureTracker }) {
+        drawDisplay(it)
+    }
 
     class Data : TrackerData() {
 
@@ -52,7 +46,7 @@ object SeaCreatureTracker {
         var amount: MutableMap<String, Int> = mutableMapOf()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onSeaCreatureFish(event: SeaCreatureFishEvent) {
         if (!isEnabled()) return
 
@@ -66,12 +60,12 @@ object SeaCreatureTracker {
         }
     }
 
-    private val nameAll: CategoryName = "All"
-    private var currentCategory: CategoryName = nameAll
+    private const val NAME_ALL: CategoryName = "All"
+    private var currentCategory: CategoryName = NAME_ALL
 
     private fun getCurrentCategories(data: Data): Map<CategoryName, Int> {
         val map = mutableMapOf<CategoryName, Int>()
-        map[nameAll] = data.amount.size
+        map[NAME_ALL] = data.amount.size
         for ((category, names) in SeaCreatureManager.allVariants) {
             val amount = names.count { it in data.amount }
             if (amount > 0) {
@@ -82,20 +76,28 @@ object SeaCreatureTracker {
         return map
     }
 
-    private fun drawDisplay(data: Data): List<List<Any>> = buildList {
-        addAsSingletonList("§7Sea Creature Tracker:")
+    @HandleEvent
+    fun onProfileJoin(event: ProfileJoinEvent) {
+        needMigration = true
+    }
+
+    private fun drawDisplay(data: Data): List<Searchable> = buildList {
+        // manually migrating from "Phlhlegblast" to "Plhlegblast" when the new name is in the repo
+        tryToMigrate(data.amount)
+
+        addSearchString("§7Sea Creature Tracker:")
 
         val filter: (String) -> Boolean = addCategories(data)
         val realAmount = data.amount.filter { filter(it.key) }
 
         val total = realAmount.sumAllValues()
-        realAmount.entries.sortedByDescending { it.value }.forEach { (name, amount) ->
+        for ((name, amount) in realAmount.entries.sortedByDescending { it.value }) {
             val displayName = SeaCreatureManager.allFishingMobs[name]?.displayName ?: run {
                 ErrorManager.logErrorStateWithData(
                     "Sea Creature Tracker can not display a name correctly",
                     "Could not find sea creature by name",
                     "SeaCreatureManager.allFishingMobs.keys" to SeaCreatureManager.allFishingMobs.keys,
-                    "name" to name
+                    "name" to name,
                 )
                 name
             }
@@ -105,16 +107,35 @@ object SeaCreatureTracker {
                 " §7$percentage"
             } else ""
 
-            addAsSingletonList(" §7- §e${amount.addSeparators()} $displayName$percentageSuffix")
+            addSearchString(" §7- §e${amount.addSeparators()} $displayName$percentageSuffix", displayName)
         }
-        addAsSingletonList(" §7- §e${total.addSeparators()} §7Total Sea Creatures")
+        addSearchString(" §7- §e${total.addSeparators()} §7Total Sea Creatures")
     }
 
-    private fun MutableList<List<Any>>.addCategories(data: Data): (String) -> Boolean {
+    private fun tryToMigrate(
+        data: MutableMap<String, Int>,
+    ) {
+        if (!needMigration) return
+        needMigration = false
+
+        val oldName = "Phlhlegblast"
+        val newName = "Plhlegblast"
+
+        // only migrate once the repo contains the new name
+        if (SeaCreatureManager.allFishingMobs.containsKey(newName)) {
+            data[oldName]?.let {
+                ChatUtils.debug("Sea Creature Tracker migrated $it $oldName to $newName")
+                data[newName] = it
+                data.remove(oldName)
+            }
+        }
+    }
+
+    private fun MutableList<Searchable>.addCategories(data: Data): (String) -> Boolean {
         val amounts = getCurrentCategories(data)
         val list = amounts.keys.toList()
         if (currentCategory !in list) {
-            currentCategory = nameAll
+            currentCategory = NAME_ALL
         }
 
         if (tracker.isInventoryOpen()) {
@@ -125,11 +146,11 @@ object SeaCreatureTracker {
                     val id = list.indexOf(currentCategory)
                     currentCategory = list[(id + 1) % list.size]
                     tracker.update()
-                }
+                },
             )
         }
 
-        return if (currentCategory == nameAll) {
+        return if (currentCategory == NAME_ALL) {
             { true }
         } else filterCurrentCategory()
     }
@@ -147,14 +168,14 @@ object SeaCreatureTracker {
         return { it in items }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigLoad(event: ConfigLoadEvent) {
         ConditionalUtils.onToggle(config.showPercentage) {
             tracker.update()
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onBobberThrow(event: FishingBobberCastEvent) {
         tracker.firstUpdate()
     }
@@ -171,16 +192,5 @@ object SeaCreatureTracker {
         tracker.resetCommand()
     }
 
-    private fun isEnabled() = LorenzUtils.inSkyBlock && config.enabled && !isTrophyFishing && !LorenzUtils.inKuudraFight
-
-    private fun isWearingTrophyArmor(): Boolean = InventoryUtils.getArmor().all {
-        trophyArmorNames.matches(it?.getInternalName()?.asString())
-    }
-
-    @SubscribeEvent
-    fun onTick(event: LorenzTickEvent) {
-        if (lastArmorCheck.passedSince() < 3.seconds) return
-        lastArmorCheck = SimpleTimeMark.now()
-        isTrophyFishing = isWearingTrophyArmor()
-    }
+    private fun isEnabled() = LorenzUtils.inSkyBlock && config.enabled && !FishingAPI.wearingTrophyArmor && !LorenzUtils.inKuudraFight
 }

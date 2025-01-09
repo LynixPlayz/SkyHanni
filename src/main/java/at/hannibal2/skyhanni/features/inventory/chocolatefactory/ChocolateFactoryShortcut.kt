@@ -1,20 +1,24 @@
 package at.hannibal2.skyhanni.features.inventory.chocolatefactory
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.data.IslandType
 import at.hannibal2.skyhanni.events.GuiContainerEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
+import at.hannibal2.skyhanni.events.render.gui.ReplaceItemEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.HypixelCommands
 import at.hannibal2.skyhanni.utils.ItemUtils
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
-import io.github.moulberry.notenoughupdates.events.ReplaceItemEvent
+import at.hannibal2.skyhanni.utils.SkullTextureHolder
 import net.minecraft.client.player.inventory.ContainerLocalMenu
 import net.minecraftforge.fml.common.eventhandler.EventPriority
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.seconds
 
-class ChocolateFactoryShortcut {
+@SkyHanniModule
+object ChocolateFactoryShortcut {
 
     private val config get() = ChocolateFactoryAPI.config
     private var showItem = false
@@ -24,8 +28,7 @@ class ChocolateFactoryShortcut {
         ItemUtils.createSkull(
             displayName = "§6Open Chocolate Factory",
             uuid = "d7ac85e6-bd40-359e-a2c5-86082959309e",
-            value = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvO" +
-                "WE4MTUzOThlN2RhODliMWJjMDhmNjQ2Y2FmYzhlN2I4MTNkYTBiZTBlZWMwY2NlNmQzZWZmNTIwNzgwMTAyNiJ9fX0=",
+            value = SkullTextureHolder.getTexture("CHOC_FAC_SHORTCUT"),
             "§8(From SkyHanni)",
             "",
             "§7Click here to run",
@@ -33,8 +36,8 @@ class ChocolateFactoryShortcut {
         )
     }
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!LorenzUtils.inSkyBlock) return
         if (LorenzUtils.inAnyIsland(
                 IslandType.THE_RIFT,
@@ -46,15 +49,15 @@ class ChocolateFactoryShortcut {
         showItem = config.hoppityMenuShortcut && event.inventoryName == "SkyBlock Menu"
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         showItem = false
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun replaceItem(event: ReplaceItemEvent) {
-        if (event.inventory is ContainerLocalMenu && showItem && event.slotNumber == 15) {
-            event.replaceWith(item)
+        if (event.inventory is ContainerLocalMenu && showItem && event.slot == 15) {
+            event.replace(item)
         }
     }
 

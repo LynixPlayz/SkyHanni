@@ -14,7 +14,7 @@ public class HelperConfig {
 
     public static class HarpConfig {
         @Expose
-        @ConfigOption(name = "GUI Scale", desc = "Automatically sets the GUI scale to \"AUTO\" when entering the Harp.")
+        @ConfigOption(name = "GUI Scale", desc = "Automatically set the GUI scale to \"AUTO\" when entering the Harp.")
         @ConfigEditorBoolean
         public boolean guiScale = false;
 
@@ -36,7 +36,7 @@ public class HelperConfig {
         public boolean showNumbers = false;
 
         @Expose
-        @ConfigOption(name = "Hide Tooltip", desc = "Hides the item tooltips inside the Harp.")
+        @ConfigOption(name = "Hide Tooltip", desc = "Hide the item tooltips inside the Harp.")
         @ConfigEditorBoolean
         @FeatureToggle
         public boolean hideMelodyTooltip = false;
@@ -51,4 +51,9 @@ public class HelperConfig {
     @ConfigOption(name = "Tia Relay Abiphone Network Maintenance", desc = "")
     @Accordion
     public TiaRelayConfig tiaRelay = new TiaRelayConfig();
+
+    @Expose
+    @ConfigOption(name = "Reforge Helper", desc = "")
+    @Accordion
+    public ReforgeHelperConfig reforge = new ReforgeHelperConfig();
 }

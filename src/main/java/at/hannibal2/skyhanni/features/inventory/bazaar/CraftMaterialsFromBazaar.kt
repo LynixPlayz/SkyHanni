@@ -1,37 +1,33 @@
 package at.hannibal2.skyhanni.features.inventory.bazaar
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
 import at.hannibal2.skyhanni.events.InventoryCloseEvent
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
-import at.hannibal2.skyhanni.features.inventory.bazaar.BazaarApi.Companion.isBazaarItem
+import at.hannibal2.skyhanni.features.inventory.bazaar.BazaarApi.isBazaarItem
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.CollectionUtils.addOrPut
 import at.hannibal2.skyhanni.utils.CollectionUtils.addString
+import at.hannibal2.skyhanni.utils.ItemPriceUtils.getPrice
 import at.hannibal2.skyhanni.utils.ItemUtils.itemName
-import at.hannibal2.skyhanni.utils.ItemUtils.itemNameWithoutColor
 import at.hannibal2.skyhanni.utils.ItemUtils.name
 import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.NEUInternalName
-import at.hannibal2.skyhanni.utils.NEUItems.getPrice
-import at.hannibal2.skyhanni.utils.NumberUtil
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
+import at.hannibal2.skyhanni.utils.NumberUtil.shortFormat
 import at.hannibal2.skyhanni.utils.PrimitiveItemStack
 import at.hannibal2.skyhanni.utils.PrimitiveItemStack.Companion.makePrimitiveStack
 import at.hannibal2.skyhanni.utils.RenderUtils.renderRenderables
-import at.hannibal2.skyhanni.utils.StringUtils.matches
 import at.hannibal2.skyhanni.utils.renderables.Renderable
-import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
-class CraftMaterialsFromBazaar {
+@SkyHanniModule
+object CraftMaterialsFromBazaar {
 
     private val config get() = SkyHanniMod.feature.inventory.bazaar
 
     private val materialSlots = listOf(10, 11, 12, 19, 20, 21, 28, 29, 30)
-    private val inventoryPattern by RepoPattern.pattern(
-        "inventory.recipe.title",
-        ".* Recipe"
-    )
 
     private var inRecipeInventory = false
     private var purchasing = false
@@ -39,14 +35,14 @@ class CraftMaterialsFromBazaar {
     private var neededMaterials = listOf<PrimitiveItemStack>()
     private var multiplier = 1
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!isEnabled()) return
-        val correctInventoryName = inventoryPattern.matches(event.inventoryName)
         val items = event.inventoryItems
         val correctItem = items[23]?.name == "§aCrafting Table"
+        val correctSuperCraftItem = items[32]?.name == "§aSupercraft"
 
-        inRecipeInventory = correctInventoryName && correctItem && !purchasing
+        inRecipeInventory = correctSuperCraftItem && correctItem && !purchasing
         if (!inRecipeInventory) return
 
         val recipeName = items[25]?.itemName ?: return
@@ -60,14 +56,14 @@ class CraftMaterialsFromBazaar {
         val neededMaterials = mutableListOf<PrimitiveItemStack>()
         display = buildList {
             val totalPrice = calculateTotalPrice(recipeMaterials, 1)
-            add(Renderable.string("§7Craft $recipeName §7(§6${NumberUtil.format(totalPrice)}§7)"))
+            add(Renderable.string("§7Craft $recipeName §7(§6${totalPrice.shortFormat()}§7)"))
             for (item in recipeMaterials) {
                 val material = item.internalName
                 val amount = item.amount
                 var text = "§8${amount.addSeparators()}x " + material.itemName
                 if (material.isBazaarItem()) {
                     neededMaterials.add(item)
-                    text += " §6${NumberUtil.format(material.getPrice() * amount)}"
+                    text += " §6${(material.getPrice() * amount).shortFormat()}"
                 }
                 add(Renderable.string(text))
             }
@@ -78,7 +74,8 @@ class CraftMaterialsFromBazaar {
                         listOf("§eClick here to buy the items from bazaar!"),
                         onClick = {
                             getFromBazaar(neededMaterials)
-                        })
+                        },
+                    ),
                 )
             }
         }
@@ -107,10 +104,15 @@ class CraftMaterialsFromBazaar {
             for ((material, amount) in neededMaterials) {
                 val priceMultiplier = amount * multiplier
                 val text = "§8${priceMultiplier.addSeparators()}x " + material.itemName +
-                    " §6${NumberUtil.format(material.getPrice() * priceMultiplier)}"
-                add(Renderable.optionalLink(text, onClick = {
-                    BazaarApi.searchForBazaarItem(material.itemNameWithoutColor, priceMultiplier)
-                }))
+                    " §6${(material.getPrice() * priceMultiplier).shortFormat(false)}"
+                add(
+                    Renderable.optionalLink(
+                        text,
+                        onClick = {
+                            BazaarApi.searchForBazaarItem(material, priceMultiplier)
+                        },
+                    ),
+                )
             }
             add(
                 Renderable.clickAndHover(
@@ -119,7 +121,8 @@ class CraftMaterialsFromBazaar {
                     onClick = {
                         purchasing = false
                         display = emptyList()
-                    })
+                    },
+                ),
             )
             addMultipliers()
         }
@@ -130,7 +133,7 @@ class CraftMaterialsFromBazaar {
             val isThisMultiply = m == multiplier
             val nameColor = if (isThisMultiply) "§a" else "§e"
             val priceColor = if (isThisMultiply) "§6" else "§7"
-            val price = priceColor + NumberUtil.format(calculateTotalPrice(neededMaterials, m))
+            val price = priceColor + calculateTotalPrice(neededMaterials, m).shortFormat()
             val text = "${nameColor}Mulitply x$m $price"
             if (!isThisMultiply) {
                 add(
@@ -140,7 +143,8 @@ class CraftMaterialsFromBazaar {
                         onClick = {
                             multiplier = m
                             updateBazaarDisplay()
-                        })
+                        },
+                    ),
                 )
             } else {
                 addString(text)
@@ -153,7 +157,7 @@ class CraftMaterialsFromBazaar {
             .filter { it.internalName.isBazaarItem() }
             .sumOf { it.internalName.getPrice() * it.amount * multiplier }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         inRecipeInventory = false
     }

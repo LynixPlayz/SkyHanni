@@ -25,9 +25,9 @@ import at.hannibal2.skyhanni.utils.RenderUtils.draw3DLine
 import at.hannibal2.skyhanni.utils.RenderUtils.drawDynamicText
 import at.hannibal2.skyhanni.utils.RenderUtils.exactPlayerEyeLocation
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
+import net.minecraft.entity.item.EntityArmorStand
 import net.minecraft.item.ItemStack
 import net.minecraft.util.EnumParticleTypes
-import net.minecraft.entity.item.EntityArmorStand
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -103,10 +103,13 @@ object HoppityEggLocator {
         }
         if (drawLocations) {
             for ((index, eggLocation) in possibleEggLocations.withIndex()) {
-                val eggLabel = "§aGuess #${index + 1}"
+                val isThere = (EntityUtils.getEntitiesNearby<EntityArmorStand>(eggLocation, 2.5).count() >= 1)
+                val color = if(isThere) LorenzColor.RED.toColor() else LorenzColor.GREEN.toColor()
+                val textColor = if(isThere) "§c" else "§a"
+                val eggLabel = textColor + "Guess #${index + 1}"
                 event.drawWaypointFilled(
                     eggLocation,
-                    LorenzColor.GREEN.toColor(),
+                    color,
                     seeThroughBlocks = true,
                 )
                 event.drawDynamicText(eggLocation.add(y = 1), eggLabel, 1.5)
@@ -131,15 +134,12 @@ object HoppityEggLocator {
 
         val islandEggsLocations = getCurrentIslandEggLocations() ?: return
         for (eggLocation in islandEggsLocations) {
-            val isThere = (EntityUtils.getEntitiesNearby<EntityArmorStand>(eggLocation, 2.5).count() >= 1)
-            val color = if(isThere) LorenzColor.RED.toColor() else LorenzColor.GREEN.toColor()
-            val textColor = if(isThere) "§c" else "§a"
             event.drawWaypointFilled(
                 eggLocation,
-                color,
+                LorenzColor.GREEN.toColor(),
                 seeThroughBlocks = true,
             )
-            event.drawDynamicText(eggLocation.add(y = 1), textColor + "Egg", 1.5)
+            event.drawDynamicText(eggLocation.add(y = 1), "§aEgg", 1.5)
         }
     }
 

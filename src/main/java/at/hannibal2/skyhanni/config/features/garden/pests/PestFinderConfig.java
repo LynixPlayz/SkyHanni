@@ -79,6 +79,11 @@ public class PestFinderConfig {
     public Position position = new Position(-350, 200, 1.3f);
 
     @Expose
+    @ConfigOption(name = "No Pests Title", desc = "Show a Title in case of No pests. Useful if you are using the §eGarden Pest Chat Filter")
+    @ConfigEditorBoolean
+    public boolean noPestTitle = false;
+
+    @Expose
     @ConfigOption(name = "Teleport Hotkey", desc = "Press this key to warp to the nearest plot with pests on it.")
     @ConfigEditorKeybind(defaultKey = Keyboard.KEY_NONE)
     public int teleportHotkey = Keyboard.KEY_NONE;
@@ -87,4 +92,9 @@ public class PestFinderConfig {
     @ConfigOption(name = "Always Teleport", desc = "Allow teleporting with the Teleport Hotkey even when you're already in an infested plot.")
     @ConfigEditorBoolean
     public boolean alwaysTp = false;
+
+    @Expose
+    @ConfigOption(name = "Back to Garden", desc = "Make the Teleport Hotkey warp you to Garden if you don't have any pests.")
+    @ConfigEditorBoolean
+    public boolean backToGarden = false;
 }

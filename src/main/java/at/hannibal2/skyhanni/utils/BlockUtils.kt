@@ -6,7 +6,6 @@ import net.minecraft.block.state.IBlockState
 import net.minecraft.client.Minecraft
 import net.minecraft.tileentity.TileEntitySkull
 import net.minecraft.util.BlockPos
-import net.minecraft.world.World
 import net.minecraftforge.common.util.Constants
 
 object BlockUtils {
@@ -51,30 +50,23 @@ object BlockUtils {
 
     fun traceRay(start: LorenzVec, direction: LorenzVec, distance: Double): List<BlockPos> {
         val world = Minecraft.getMinecraft().theWorld
-
         val collidedBlocks = mutableListOf<BlockPos>()
-
         // Normalize direction vector
         val normalizedDirection = direction.normalize()
-
         var x = start.x
         var y = start.y
         var z = start.z
-
         for (i in 0 until distance.toInt()) {
             val pos = BlockPos(x, y, z)
             val state = world.getBlockState(pos)
-
             if (!state.block.isAir(world, pos)) {
                 collidedBlocks.add(pos)
                 // Handle collision logic here
             }
-
             x += normalizedDirection.x
             y += normalizedDirection.y
             z += normalizedDirection.z
         }
-
         return collidedBlocks
     }
 

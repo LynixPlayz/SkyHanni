@@ -47,6 +47,7 @@ object TrevorSolver {
     }
 
     fun findMob() {
+        var canSee = false
         Minecraft.getMinecraft().theWorld ?: return
         for (entity in EntityUtils.getAllEntities()) {
             if (entity is EntityOtherPlayerMP) continue

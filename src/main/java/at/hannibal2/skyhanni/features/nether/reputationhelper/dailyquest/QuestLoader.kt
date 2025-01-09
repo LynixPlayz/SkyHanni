@@ -1,7 +1,8 @@
 package at.hannibal2.skyhanni.features.nether.reputationhelper.dailyquest
 
 import at.hannibal2.skyhanni.config.storage.ProfileSpecificStorage
-import at.hannibal2.skyhanni.data.jsonobjects.repo.CrimsonIsleReputationJson.ReputationQuest
+import at.hannibal2.skyhanni.data.jsonobjects.repo.ReputationQuest
+import at.hannibal2.skyhanni.data.model.TabWidget
 import at.hannibal2.skyhanni.events.InventoryFullyOpenedEvent
 import at.hannibal2.skyhanni.features.nether.reputationhelper.dailyquest.quest.DojoQuest
 import at.hannibal2.skyhanni.features.nether.reputationhelper.dailyquest.quest.FetchQuest
@@ -18,8 +19,9 @@ import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.DelayedRun
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.LorenzUtils
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.RegexUtils.groupOrNull
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.TabListData
 import net.minecraft.item.ItemStack
 
@@ -36,49 +38,34 @@ class QuestLoader(private val dailyQuestHelper: DailyQuestHelper) {
     }
 
     fun loadFromTabList() {
-        var i = -1
         dailyQuestHelper.greatSpook = false
-        for (line in TabListData.getTabList()) {
-            if (line.contains("Faction Quests:")) {
-                i = 0
-                continue
-            }
-            if (i == -1) continue
+        var found = 0
 
-            i++
+
+        for (line in TabWidget.FACTION_QUESTS.lines) {
             readQuest(line)
+            found++
             if (dailyQuestHelper.greatSpook) return
-            if (i == 5) {
-                break
-            }
         }
+
+        dailyQuestHelper.reputationHelper.tabListQuestsMissing = found == 0
+        dailyQuestHelper.update()
     }
 
     private fun readQuest(line: String) {
-        if (!dailyQuestHelper.reputationHelper.tabListQuestPattern.matches(line)) return
+        dailyQuestHelper.reputationHelper.tabListQuestPattern.matchMatcher(line) {
+            if (line.contains("The Great Spook")) {
+                dailyQuestHelper.greatSpook = true
+                dailyQuestHelper.update()
+                return
+            }
 
-        if (line.contains("The Great Spook")) {
-            dailyQuestHelper.greatSpook = true
-            dailyQuestHelper.update()
-            return
+            val name = group("name")
+            val amount = groupOrNull("amount")?.toInt() ?: 1
+            val green = group("status") == "✔"
+
+            checkQuest(name, green, amount)
         }
-        var text = line.substring(3)
-        val green = text.startsWith("§a")
-        text = text.substring(2)
-
-        val amount: Int
-        val name: String
-        // TODO use regex
-        if (text.contains(" §r§8x")) {
-            val split = text.split(" §r§8x")
-            name = split[0]
-            amount = split[1].toInt()
-        } else {
-            name = text
-            amount = 1
-        }
-
-        checkQuest(name, green, amount)
     }
 
     private fun checkQuest(name: String, green: Boolean, needAmount: Int) {
@@ -92,7 +79,7 @@ class QuestLoader(private val dailyQuestHelper: DailyQuestHelper) {
             return
         }
 
-        val state = if (green) QuestState.READY_TO_COLLECT else QuestState.NOT_ACCEPTED
+        val state = if (green) QuestState.READY_TO_COLLECT else QuestState.ACCEPTED
         dailyQuestHelper.update()
         addQuest(addQuest(name, state, needAmount))
     }
@@ -159,24 +146,19 @@ class QuestLoader(private val dailyQuestHelper: DailyQuestHelper) {
             if (!categoryName.equals(name, ignoreCase = true)) continue
             val stack = event.inventoryItems[22] ?: continue
 
-            val completed = stack.getLore().any { it.contains("Completed!") }
+            val completed = stack.getLore().any { dailyQuestHelper.completedPattern.matches(it) }
             if (completed && quest.state != QuestState.COLLECTED) {
                 quest.state = QuestState.COLLECTED
                 dailyQuestHelper.update()
             }
 
-            val accepted = !stack.getLore().any { it.contains("Click to start!") }
-            if (accepted && quest.state == QuestState.NOT_ACCEPTED) {
-                quest.state = QuestState.ACCEPTED
-                dailyQuestHelper.update()
-            }
             if (name == "Miniboss") {
                 fixMinibossAmount(quest, stack)
             }
         }
     }
 
-    // TODO remove this workaround once hypixel fixes the bug that amount is not in tab list for minibosses
+    // TODO remove this workaround once hypixel fixes the bug that amount is not in tab list for mini bosses
     private fun fixMinibossAmount(quest: Quest, stack: ItemStack) {
         if (quest !is MiniBossQuest) return
         val storedAmount = quest.needAmount
@@ -208,16 +190,27 @@ class QuestLoader(private val dailyQuestHelper: DailyQuestHelper) {
         for (text in storage.quests.toList()) {
             val split = text.split(":")
             val name = split[0]
-            val state = QuestState.valueOf(split[1])
+            val state = if (split[1] == "NOT_ACCEPTED") {
+                QuestState.ACCEPTED
+            } else {
+                QuestState.valueOf(split[1])
+            }
             val needAmount = split[2].toInt()
             val quest = addQuest(name, state, needAmount)
+            if (quest is UnknownQuest) {
+                dailyQuestHelper.quests.clear()
+                storage.quests.clear()
+                println("Reset crimson isle quest data from the config because the config was invalid!")
+                return
+            }
             if (quest is ProgressQuest && split.size == 4) {
                 try {
                     val haveAmount = split[3].toInt()
                     quest.haveAmount = haveAmount
                 } catch (e: IndexOutOfBoundsException) {
                     ErrorManager.logErrorWithData(
-                        e, "Error loading Crimson Isle Quests from config.",
+                        e,
+                        "Error loading Crimson Isle Quests from config.",
                         "text" to text,
                     )
                 }

@@ -1,24 +1,26 @@
 package at.hannibal2.skyhanni.features.garden.farming
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.data.ClickType
 import at.hannibal2.skyhanni.data.GardenCropMilestones.getCounter
 import at.hannibal2.skyhanni.data.GardenCropMilestones.setCounter
-import at.hannibal2.skyhanni.data.Perk
 import at.hannibal2.skyhanni.data.jsonobjects.repo.DicerDropsJson
-import at.hannibal2.skyhanni.data.jsonobjects.repo.DicerDropsJson.DicerType
+import at.hannibal2.skyhanni.data.jsonobjects.repo.DicerType
 import at.hannibal2.skyhanni.events.CropClickEvent
 import at.hannibal2.skyhanni.events.GardenToolChangeEvent
 import at.hannibal2.skyhanni.events.ProfileJoinEvent
 import at.hannibal2.skyhanni.events.RepositoryReloadEvent
 import at.hannibal2.skyhanni.features.garden.CropType
 import at.hannibal2.skyhanni.features.garden.GardenAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.CollectionUtils.editCopy
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getInternalName
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import kotlin.concurrent.fixedRateTimer
 
+@SkyHanniModule
 object GardenCropSpeed {
 
     private val config get() = GardenAPI.config
@@ -26,7 +28,7 @@ object GardenCropSpeed {
     private val latestBlocksPerSecond: MutableMap<CropType, Double>? get() = GardenAPI.storage?.latestBlocksPerSecond
 
     var lastBrokenCrop: CropType? = null
-    var lastBrokenTime = 0L
+    var lastBrokenTime = SimpleTimeMark.now()
 
     var averageBlocksPerSecond = 0.0
 
@@ -54,12 +56,12 @@ object GardenCropSpeed {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onProfileJoin(event: ProfileJoinEvent) {
         lastBrokenCrop = null
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onGardenToolChange(event: GardenToolChangeEvent) {
         if (isEnabled()) {
             resetSpeed()
@@ -71,17 +73,17 @@ object GardenCropSpeed {
         GardenCropMilestoneDisplay.update()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onCropClick(event: CropClickEvent) {
         if (event.clickType != ClickType.LEFT_CLICK) return
 
         lastBrokenCrop = event.crop
-        lastBrokenTime = System.currentTimeMillis()
+        lastBrokenTime = SimpleTimeMark.now()
         blocksBroken++
     }
 
     private fun checkSpeed() {
-        val blocksBroken = blocksBroken.coerceAtMost(20)
+        val blocksBroken = blocksBroken
         this.blocksBroken = 0
 
         if (blocksBroken == 0) {
@@ -103,9 +105,9 @@ object GardenCropSpeed {
                 }
             }
             averageBlocksPerSecond = if (blocksSpeedList.size > 5) {
-                blocksSpeedList.drop(3).average()
+                blocksSpeedList.drop(3).average().coerceAtMost(20.0)
             } else if (blocksSpeedList.size > 1) {
-                blocksSpeedList.drop(1).average()
+                blocksSpeedList.drop(1).average().coerceAtMost(20.0)
             } else 0.0
             GardenAPI.getCurrentlyFarmedCrop()?.let {
                 val heldTool = InventoryUtils.getItemInHand()
@@ -135,7 +137,7 @@ object GardenCropSpeed {
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRepoReload(event: RepositoryReloadEvent) {
         val data = event.getConstant<DicerDropsJson>("DicerDrops")
         calculateAverageDicer(melonDicer, data.MELON)
@@ -174,8 +176,6 @@ object GardenCropSpeed {
         secondsStopped = 0
     }
 
-    fun finneganPerkActive() = Perk.FARMING_SIMULATOR.isActive
-
     fun isEnabled() = GardenAPI.inGarden()
 
     fun CropType.getSpeed() = cropsPerSecond?.get(this)
@@ -188,7 +188,7 @@ object GardenCropSpeed {
 
     fun isSpeedDataEmpty() = cropsPerSecond?.values?.sum()?.let { it == 0 } ?: true
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(3, "garden.blocksBrokenResetTime", "garden.cropMilestones.blocksBrokenResetTime")
     }

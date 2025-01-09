@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.slayer
 
 import at.hannibal2.skyhanni.SkyHanniMod
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.storage.ProfileSpecificStorage
 import at.hannibal2.skyhanni.data.ProfileStorageData
 import at.hannibal2.skyhanni.data.SlayerAPI
@@ -11,6 +12,7 @@ import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.NeuRepositoryReloadEvent
 import at.hannibal2.skyhanni.events.SecondPassedEvent
 import at.hannibal2.skyhanni.events.SlayerChangeEvent
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.test.command.ErrorManager
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.CollectionUtils.nextAfter
@@ -22,9 +24,10 @@ import at.hannibal2.skyhanni.utils.LorenzUtils
 import at.hannibal2.skyhanni.utils.NEUInternalName
 import at.hannibal2.skyhanni.utils.NumberUtil.addSeparators
 import at.hannibal2.skyhanni.utils.NumberUtil.formatLong
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
+import at.hannibal2.skyhanni.utils.RegexUtils.matches
 import at.hannibal2.skyhanni.utils.RenderUtils.renderRenderables
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
-import at.hannibal2.skyhanni.utils.StringUtils.matches
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.StringUtils.removeWordsAtEnd
 import at.hannibal2.skyhanni.utils.renderables.Renderable
@@ -33,7 +36,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import kotlin.math.ceil
 import kotlin.time.Duration.Companion.seconds
 
-class SlayerRngMeterDisplay {
+@SkyHanniModule
+object SlayerRngMeterDisplay {
 
     private val config get() = SkyHanniMod.feature.slayer.rngMeterDisplay
 
@@ -63,7 +67,7 @@ class SlayerRngMeterDisplay {
     )
 
     private var display = emptyList<Renderable>()
-    private var lastItemDroppedTime = 0L
+    private var lastItemDroppedTime = SimpleTimeMark.farPast()
 
     var rngScore = mapOf<String, Map<NEUInternalName, Long>>()
 
@@ -71,13 +75,13 @@ class SlayerRngMeterDisplay {
     fun onSecondPassed(event: SecondPassedEvent) {
         if (!isEnabled()) return
 
-        if (lastItemDroppedTime != 0L && System.currentTimeMillis() > lastItemDroppedTime + 4_000) {
-            lastItemDroppedTime = 0L
+        if (!lastItemDroppedTime.isFarPast() && lastItemDroppedTime.passedSince() > 4.seconds) {
+            lastItemDroppedTime = SimpleTimeMark.farPast()
             update()
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onSlayerChange(event: SlayerChangeEvent) {
         update()
     }
@@ -120,8 +124,8 @@ class SlayerRngMeterDisplay {
                 var rawPercentage = old.toDouble() / storage.goalNeeded
                 if (rawPercentage > 1) rawPercentage = 1.0
                 val percentage = LorenzUtils.formatPercentage(rawPercentage)
-                ChatUtils.chat("§dRNG Meter §7dropped at §e$percentage §7XP ($from/${to}§7)")
-                lastItemDroppedTime = System.currentTimeMillis()
+                ChatUtils.chat("§dRNG Meter §7dropped at §e$percentage §7XP ($from/$to§7)")
+                lastItemDroppedTime = SimpleTimeMark.now()
             }
             if (blockChat) {
                 event.blockedReason = "slayer_rng_meter"
@@ -138,15 +142,15 @@ class SlayerRngMeterDisplay {
 
     private fun getCurrentSlayer() = SlayerAPI.latestSlayerCategory.removeWordsAtEnd(1).removeColor()
 
-    @SubscribeEvent
-    fun onInventoryOpen(event: InventoryFullyOpenedEvent) {
+    @HandleEvent
+    fun onInventoryFullyOpened(event: InventoryFullyOpenedEvent) {
         if (!isEnabled()) return
 
-        readRngmeterInventory(event)
+        readRngMeterInventory(event)
         readSlayerInventory(event)
     }
 
-    private fun readRngmeterInventory(event: InventoryFullyOpenedEvent) {
+    private fun readRngMeterInventory(event: InventoryFullyOpenedEvent) {
         val name = inventoryNamePattern.matchMatcher(event.inventoryName) {
             group("name")
         } ?: return
@@ -192,7 +196,7 @@ class SlayerRngMeterDisplay {
         update()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onNeuRepoReload(event: NeuRepositoryReloadEvent) {
         rngScore = event.readConstant<NeuRNGScore>("rngscore").slayer
     }
@@ -202,25 +206,27 @@ class SlayerRngMeterDisplay {
     }
 
     private fun makeLink(text: String) =
-        Renderable.clickAndHover(text, listOf("§eClick to open RNG Meter Inventory."), onClick = {
-            HypixelCommands.showRng("slayer", SlayerAPI.getActiveSlayer()?.rngName)
-        })
+        Renderable.clickAndHover(
+            text, listOf("§eClick to open RNG Meter Inventory."),
+            onClick = {
+                HypixelCommands.showRng("slayer", SlayerAPI.activeSlayer?.rngName)
+            },
+        )
 
     fun drawDisplay(): String {
         val storage = getStorage() ?: return ""
 
         if (SlayerAPI.latestSlayerCategory.let {
                 it.endsWith(" I") || it.endsWith(" II")
-            }) {
+            }
+        ) {
             return ""
         }
-        val latestSlayerCategory = SlayerAPI.latestSlayerCategory
-        latestSlayerCategory.endsWith(" I")
 
         with(storage) {
             if (itemGoal == "?") return "§cOpen RNG Meter Inventory!"
             if (itemGoal == "") {
-                return if (lastItemDroppedTime != 0L) {
+                return if (!lastItemDroppedTime.isFarPast()) {
                     "§a§lRNG Item dropped!"
                 } else {
                     "§eNo RNG Item selected!"

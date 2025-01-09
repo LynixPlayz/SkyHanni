@@ -1,8 +1,9 @@
 package at.hannibal2.skyhanni.events
 
+import at.hannibal2.skyhanni.api.event.SkyHanniEvent
 import at.hannibal2.skyhanni.utils.StringUtils.equalsIgnoreColor
 
-class DebugDataCollectEvent(private val list: MutableList<String>, private val search: String) : LorenzEvent() {
+class DebugDataCollectEvent(private val list: MutableList<String>, private val search: String) : SkyHanniEvent() {
 
     var empty = true
     private var currentTitle = ""
@@ -18,7 +19,7 @@ class DebugDataCollectEvent(private val list: MutableList<String>, private val s
 
     fun addIrrelevant(text: String) = addIrrelevant(listOf(text))
 
-    private fun addIrrelevant(text: List<String>) {
+    fun addIrrelevant(text: List<String>) {
         irrelevant = true
         addData(text)
     }

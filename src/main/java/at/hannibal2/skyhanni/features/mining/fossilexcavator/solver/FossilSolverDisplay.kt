@@ -2,6 +2,7 @@ package at.hannibal2.skyhanni.features.mining.fossilexcavator.solver
 
 import at.hannibal2.skyhanni.SkyHanniMod
 import at.hannibal2.skyhanni.SkyHanniMod.Companion.coroutineScope
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.data.IslandType
 import at.hannibal2.skyhanni.events.GuiContainerEvent
@@ -11,32 +12,43 @@ import at.hannibal2.skyhanni.events.LorenzTickEvent
 import at.hannibal2.skyhanni.events.LorenzWorldChangeEvent
 import at.hannibal2.skyhanni.events.RenderInventoryItemTipEvent
 import at.hannibal2.skyhanni.features.mining.fossilexcavator.FossilExcavatorAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.ColorUtils.addAlpha
 import at.hannibal2.skyhanni.utils.InventoryUtils
 import at.hannibal2.skyhanni.utils.ItemUtils.getLore
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.LorenzUtils.isInIsland
-import at.hannibal2.skyhanni.utils.LorenzUtils.round
+import at.hannibal2.skyhanni.utils.NumberUtil.roundTo
+import at.hannibal2.skyhanni.utils.RegexUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.RenderUtils.highlight
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
 import at.hannibal2.skyhanni.utils.RenderUtils.renderStrings
-import at.hannibal2.skyhanni.utils.StringUtils.matchMatcher
 import at.hannibal2.skyhanni.utils.StringUtils.removeColor
 import at.hannibal2.skyhanni.utils.repopatterns.RepoPattern
 import kotlinx.coroutines.launch
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 
+@SkyHanniModule
 object FossilSolverDisplay {
 
     private val config get() = SkyHanniMod.feature.mining.fossilExcavator.solver
 
     private val patternGroup = RepoPattern.group("mining.fossilexcavator")
+
+    /**
+     * REGEX-TEST: Chisel Charges Remaining: 3
+     */
     private val chargesRemainingPattern by patternGroup.pattern(
         "chargesremaining",
-        "Chisel Charges Remaining: (?<charges>\\d+)"
+        "Chisel Charges Remaining: (?<charges>\\d+)",
     )
+
+    /**
+     * REGEX-TEST: Fossil Excavation Progress: 8.3%
+     */
     private val fossilProgressPattern by patternGroup.pattern(
         "fossilprogress",
-        "Fossil Excavation Progress: (?<progress>[\\d.]+%)"
+        "Fossil Excavation Progress: (?<progress>[\\d.]+%)",
     )
 
     private val inExcavatorMenu get() = FossilExcavatorAPI.inExcavatorMenu
@@ -68,7 +80,7 @@ object FossilSolverDisplay {
         clearData()
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onInventoryClose(event: InventoryCloseEvent) {
         clearData()
     }
@@ -154,19 +166,19 @@ object FossilSolverDisplay {
     }
 
     @SubscribeEvent
-    fun onBackgroundDrawn(event: GuiContainerEvent.BackgroundDrawnEvent) {
+    fun onBackgroundDrawn(event: GuiContainerEvent.ForegroundDrawnEvent) {
         if (!isEnabled()) return
         if (inExcavatorMenu) return
         if (slotToClick == null) return
 
         for (slot in InventoryUtils.getItemsInOpenChest()) {
             if (slot.slotIndex == slotToClick) {
-                slot highlight LorenzColor.GREEN
+                slot highlight LorenzColor.GREEN.toColor().addAlpha(90)
             }
         }
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRenderItemTip(event: RenderInventoryItemTipEvent) {
         if (!isEnabled()) return
         if (!config.showPercentage) return
@@ -184,8 +196,8 @@ object FossilSolverDisplay {
         if (!isEnabled()) return
 
         if (inExcavatorMenu) {
-            // render here so they can move it around. As if you press key while doing the excavator you lose the scrap
-            config.position.renderString("§eExcavator solver gui", posLabel = "Fossil Excavator Solver")
+            // Render here so they can move it around. As if you press key while doing the excavator you lose the scrap
+            config.position.renderString("§eExcavator solver GUI", posLabel = "Fossil Excavator Solver")
             return
         }
 
@@ -208,14 +220,14 @@ object FossilSolverDisplay {
         config.position.renderStrings(displayList, posLabel = "Fossil Excavator Solver")
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onConfigFix(event: ConfigUpdaterMigrator.ConfigFixEvent) {
         event.move(36, "mining.fossilExcavator", "mining.fossilExcavator2.solver")
         event.move(37, "mining.fossilExcavator2", "mining.fossilExcavator")
     }
 
     fun nextData(slotToClick: FossilTile, correctPercentage: Double, fossilsRemaining: Int) {
-        val formattedPercentage = (correctPercentage * 100).round(1)
+        val formattedPercentage = (correctPercentage * 100).roundTo(1)
 
         possibleFossilsRemaining = fossilsRemaining
         FossilSolverDisplay.slotToClick = slotToClick.toSlotIndex()

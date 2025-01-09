@@ -1,8 +1,10 @@
 package at.hannibal2.skyhanni.features.garden
 
-import at.hannibal2.skyhanni.events.LorenzKeyPressEvent
+import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
+import at.hannibal2.skyhanni.events.minecraft.KeyPressEvent
 import at.hannibal2.skyhanni.features.garden.GardenPlotAPI.renderPlot
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.LocationUtils.distanceSqToPlayer
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
@@ -10,14 +12,15 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import org.lwjgl.input.Keyboard
 import kotlin.time.Duration.Companion.milliseconds
 
+@SkyHanniModule
 object GardenPlotBorders {
 
     private val config get() = GardenAPI.config.plotBorders
     private var timeLastSaved = SimpleTimeMark.farPast()
     private var showBorders = false
 
-    @SubscribeEvent
-    fun onKeyClick(event: LorenzKeyPressEvent) {
+    @HandleEvent
+    fun onKeyPress(event: KeyPressEvent) {
         if (!isEnabled()) return
         if (timeLastSaved.passedSince() < 250.milliseconds) return
 
