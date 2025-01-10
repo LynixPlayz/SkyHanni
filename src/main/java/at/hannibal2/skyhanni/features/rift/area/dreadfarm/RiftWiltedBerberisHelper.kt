@@ -1,11 +1,15 @@
 package at.hannibal2.skyhanni.features.rift.area.dreadfarm
 
+import at.hannibal2.skyhanni.api.event.HandleEvent
+import at.hannibal2.skyhanni.config.ConfigUpdaterMigrator
 import at.hannibal2.skyhanni.data.ClickType
 import at.hannibal2.skyhanni.events.BlockClickEvent
 import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.LorenzTickEvent
+import at.hannibal2.skyhanni.events.PlaySoundEvent
 import at.hannibal2.skyhanni.events.ReceiveParticleEvent
 import at.hannibal2.skyhanni.features.rift.RiftAPI
+import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.BlockUtils
 import at.hannibal2.skyhanni.utils.BlockUtils.getBlockAt
 import at.hannibal2.skyhanni.utils.CollectionUtils.editCopy
@@ -16,9 +20,10 @@ import at.hannibal2.skyhanni.utils.LocationUtils.distanceToPlayer
 import at.hannibal2.skyhanni.utils.LorenzVec
 import at.hannibal2.skyhanni.utils.RenderUtils.draw3DLine
 import at.hannibal2.skyhanni.utils.RenderUtils.drawDynamicText
-import at.hannibal2.skyhanni.utils.RenderUtils.drawFilledBoundingBox_nea
+import at.hannibal2.skyhanni.utils.RenderUtils.drawFilledBoundingBoxNea
 import at.hannibal2.skyhanni.utils.RenderUtils.exactPlayerEyeLocation
 import at.hannibal2.skyhanni.utils.RenderUtils.expandBlock
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
 import at.hannibal2.skyhanni.utils.toLorenzVec
 import net.minecraft.client.Minecraft
 import net.minecraft.init.Blocks
@@ -26,20 +31,22 @@ import net.minecraft.util.BlockPos
 import net.minecraft.util.EnumParticleTypes
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import java.awt.Color
+import kotlin.time.Duration.Companion.milliseconds
 
-class RiftWiltedBerberisHelper {
+@SkyHanniModule
+object RiftWiltedBerberisHelper {
 
     private val config get() = RiftAPI.config.area.dreadfarm.wiltedBerberis
     private var isOnFarmland = false
     private var hasFarmingToolInHand = false
     private var list = listOf<WiltedBerberis>()
 
-    class WiltedBerberis(var currentParticles: LorenzVec) {
+    data class WiltedBerberis(var currentParticles: LorenzVec) {
 
         var previous: LorenzVec? = null
         var moving = true
         var y = 0.0
-        var lastTime = System.currentTimeMillis()
+        var lastTime = SimpleTimeMark.now()
     }
 
     @SubscribeEvent
@@ -47,34 +54,37 @@ class RiftWiltedBerberisHelper {
         if (!isEnabled()) return
         if (!event.isMod(5)) return
 
-        list = list.editCopy { removeIf { System.currentTimeMillis() > it.lastTime + 500 } }
+        list = list.editCopy { removeIf { it.lastTime.passedSince() > 500.milliseconds } }
 
         hasFarmingToolInHand = InventoryUtils.getItemInHand()?.getInternalName() == RiftAPI.farmingTool
 
         if (Minecraft.getMinecraft().thePlayer.onGround) {
-            val block = LocationUtils.playerLocation().add(y = -1).getBlockAt()
+            val block = LorenzVec.getBlockBelowPlayer().getBlockAt()
             val currentY = LocationUtils.playerLocation().y
             isOnFarmland = block == Blocks.farmland && (currentY % 1 == 0.0)
         }
     }
 
-    private fun nearestBerberis(location: LorenzVec): WiltedBerberis? {
-        return list.filter { it.currentParticles.distanceSq(location) < 8 }
+    private fun nearestBerberis(location: LorenzVec): WiltedBerberis? =
+        list.filter { it.currentParticles.distanceSq(location) < 8 }
             .minByOrNull { it.currentParticles.distanceSq(location) }
-    }
 
-    @SubscribeEvent
+
+    @HandleEvent
     fun onBlockClick(event: BlockClickEvent) {
         if (!isEnabled()) return
         if (!hasFarmingToolInHand) return
+
         val location = event.position
         val berberis = nearestBerberis(location)
+
         if (event.clickType == ClickType.LEFT_CLICK) {
             if (berberis == null) {
                 list = list.editCopy { add(WiltedBerberis(location)) }
                 println("added wilted berberis")
                 return
             }
+
             with(berberis) {
                 if (moving) {
                     previous = location
@@ -92,14 +102,14 @@ class RiftWiltedBerberisHelper {
         val berberis = nearestBerberis(location)
 
         if (event.type != EnumParticleTypes.FIREWORKS_SPARK) {
-            if (config.hideparticles && berberis != null) {
-                event.isCanceled = true
+            if (config.hideParticles && berberis != null) {
+                event.cancel()
             }
             return
         }
 
-        if (config.hideparticles) {
-            event.isCanceled = true
+        if (config.hideParticles) {
+            event.cancel()
         }
 
         if (berberis == null) {
@@ -124,7 +134,17 @@ class RiftWiltedBerberisHelper {
 
             moving = isMoving
             currentParticles = location
-            lastTime = System.currentTimeMillis()
+            lastTime = SimpleTimeMark.now()
+        }
+    }
+
+    @HandleEvent
+    fun onPlaySound(event: PlaySoundEvent) {
+        if (!isMuteOthersSoundsEnabled()) return
+        val soundName = event.soundName
+
+        if (soundName == "mob.horse.donkey.death" || soundName == "mob.horse.donkey.hit") {
+            event.cancel()
         }
     }
 
@@ -142,17 +162,17 @@ class RiftWiltedBerberisHelper {
 
                 val location = currentParticles.fixLocation(berberis)
                 if (!moving) {
-                    event.drawFilledBoundingBox_nea(axisAlignedBB(location), Color.YELLOW, 0.7f)
+                    event.drawFilledBoundingBoxNea(axisAlignedBB(location), Color.YELLOW, 0.7f)
                     event.draw3DLine(event.exactPlayerEyeLocation(), location.add(0.5, 0.0, 0.5), Color.YELLOW, 3, true)
                     event.drawDynamicText(location.add(y = 1), "§eWilted Berberis", 1.5, ignoreBlocks = false)
                 } else {
-                    event.drawFilledBoundingBox_nea(axisAlignedBB(location), Color.WHITE, 0.5f)
+                    event.drawFilledBoundingBoxNea(axisAlignedBB(location), Color.WHITE, 0.5f)
                     previous?.fixLocation(berberis)?.let {
-                        event.drawFilledBoundingBox_nea(axisAlignedBB(it), Color.LIGHT_GRAY, 0.2f)
+                        event.drawFilledBoundingBoxNea(axisAlignedBB(it), Color.LIGHT_GRAY, 0.2f)
                         event.draw3DLine(it.add(0.5, 0.0, 0.5), location.add(0.5, 0.0, 0.5), Color.WHITE, 3, false)
                         for(pos in BlockUtils.traceRay(location.add(0.5, 0.5, 0.5), (location.add(0.5, 0.0, 0.5) - it.add(0.5, 0.0, 0.5)).normalize(), 25.0)) {
                             if(Minecraft.getMinecraft().theWorld.getBlockState(pos).block == Blocks.deadbush) {
-                                event.drawFilledBoundingBox_nea(axisAlignedBB(pos.toLorenzVec()), Color.RED, 0.5f)
+                                event.drawFilledBoundingBoxNea(axisAlignedBB(pos.toLorenzVec()), Color.RED, 0.5f)
                                 pos.toLorenzVec().let { it1 ->
                                     event.draw3DLine(event.exactPlayerEyeLocation(), it1
                                         .add(0.5, 0.0, 0.5), Color.RED, 3, true)
@@ -167,20 +187,23 @@ class RiftWiltedBerberisHelper {
 
     fun getAveragePosition(blockPosList: List<BlockPos>): BlockPos? {
         if (blockPosList.isEmpty()) return null
+
         var sumX = 0
         var sumY = 0
         var sumZ = 0
+
         for (blockPos in blockPosList) {
             sumX += blockPos.x
             sumY += blockPos.y
             sumZ += blockPos.z
         }
+
         val averageX = sumX / blockPosList.size
         val averageY = sumY / blockPosList.size
         val averageZ = sumZ / blockPosList.size
+
         return BlockPos(averageX, averageY, averageZ)
     }
-
 
     private fun axisAlignedBB(loc: LorenzVec) = loc.add(0.1, -0.1, 0.1).boundingToOffset(0.8, 1.0, 0.8).expandBlock()
 
@@ -192,4 +215,9 @@ class RiftWiltedBerberisHelper {
     }
 
     private fun isEnabled() = RiftAPI.inRift() && RiftAPI.inDreadfarm() && config.enabled
+
+    private fun isMuteOthersSoundsEnabled() = RiftAPI.inRift() &&
+        config.muteOthersSounds &&
+        (RiftAPI.inDreadfarm() || RiftAPI.inWestVillage()) &&
+        !(hasFarmingToolInHand && isOnFarmland)
 }
