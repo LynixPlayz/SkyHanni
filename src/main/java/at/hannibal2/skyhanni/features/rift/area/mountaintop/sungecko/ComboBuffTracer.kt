@@ -45,7 +45,6 @@ object ComboBuffTracer {
     fun onWorldRender(event: LorenzRenderWorldEvent) {
         if(!isEnabled()) return
         for (armorStand in armorStands) {
-            println(armorStand.name)
             event.drawLineToEye(armorStand.getLorenzVec(), Color.YELLOW, 1, true)
         }
     }

@@ -12,11 +12,13 @@ import at.hannibal2.skyhanni.events.entity.EntityClickEvent
 import at.hannibal2.skyhanni.events.entity.EntityHealthUpdateEvent
 import at.hannibal2.skyhanni.features.rift.RiftAPI
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.LorenzColor
 import at.hannibal2.skyhanni.utils.RenderUtils.renderString
 import at.hannibal2.skyhanni.utils.RenderUtils.renderStrings
 import at.hannibal2.skyhanni.utils.RenderUtils.renderStringsAndItems
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
+import at.hannibal2.skyhanni.utils.TimeUnit
 import at.hannibal2.skyhanni.utils.TimeUtils.format
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import java.awt.Color
@@ -79,7 +81,7 @@ object ComboDisplay {
             string = "Combos Left: §e§l${combosNeeded - currentCombos}",
             posLabel = "Combo Display"
         )
-        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold && (comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) != 0.0 || config.alwaysRender) {
+        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold && (comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= 0.1 || config.alwaysRender) {
             config.position2.renderString(
                 string = "${
                     getColorFromLevel(comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000).toChatFormatting()
@@ -94,7 +96,6 @@ object ComboDisplay {
     @HandleEvent
     fun onActionBar(event: ActionBarUpdateEvent) {
         val text = event.actionBar
-        println(text)
         var tempCombosNeeded = 0;
         var tempCurrentCombos = 0;
         var tempComboTimeSpent = 0.0f;
@@ -122,9 +123,6 @@ object ComboDisplay {
             }
         }
 
-        println("max: ${tempCombosNeeded.toFloat() * 0.5f}")
-        println("current: $tempComboTimeSpent")
-
         val timeToAdd = (((tempCombosNeeded.toFloat() * 0.5f) - tempComboTimeSpent) * 1000).toLong().coerceAtLeast(0L).milliseconds
 
         comboTimeUp = (SimpleTimeMark.now() + timeToAdd)
@@ -136,23 +134,22 @@ object ComboDisplay {
     fun onChat(event: LorenzChatEvent) {
         val message = event.message
         if(message.contains("ACTIVE MODIFIERS")) {
-            println("active modifiers")
             sending = true
             return
         }
         if(sending && message.contains("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")){
-            println("disable sending")
             sending = false
             return
         }
         if(sending && message.contains("§r§a")){
-            println("checking...")
             for (match in modifiersRegex.findAll(message)) {
-                println("Found match: $match")
-                println(match.groupValues[1])
                 if(match.groupValues[1] == "Time Sliced") timeSliced = true
                 if(match.groupValues[1] == "Culmination") culmination = true
             }
+        }
+        if(message.contains("SUN GECKO DOWN!"))
+        {
+            ChatUtils.chat("Sun Gecko defeated in " + (180 - timeLeftSeconds).seconds.format(biggestUnit = TimeUnit.MINUTE))
         }
     }
 
