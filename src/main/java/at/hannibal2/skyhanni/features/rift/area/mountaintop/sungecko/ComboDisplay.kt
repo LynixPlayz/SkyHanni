@@ -79,7 +79,7 @@ object ComboDisplay {
             string = "Combos Left: §e§l${combosNeeded - currentCombos}",
             posLabel = "Combo Display"
         )
-        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold) {
+        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold || config.alwaysRender) {
             config.position2.renderString(
                 string = "${
                     getColorFromLevel(comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000).toChatFormatting()
