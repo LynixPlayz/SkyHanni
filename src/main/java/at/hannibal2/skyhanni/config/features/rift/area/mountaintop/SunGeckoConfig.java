@@ -22,6 +22,11 @@ public class SunGeckoConfig {
     public boolean alwaysRender = false;
 
     @Expose
+    @ConfigOption(name = "Trace to Combo Buff", desc = "Draws a line to any combo buffs in the area.")
+    @ConfigEditorBoolean
+    public boolean comboBuffTrace = true;
+
+    @Expose
     @ConfigOption(name = "Time Left Threshold", desc = "The amount of time left needed to display the timer.")
     @ConfigEditorSlider(minValue = 0f, maxValue = 5, minStep = 0.1f)
     public float timeLeftThreshold = 2.5f;
