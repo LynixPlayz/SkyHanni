@@ -5,6 +5,7 @@ import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.entity.EntityCustomNameUpdateEvent
 import at.hannibal2.skyhanni.events.entity.EntityEnterWorldEvent
 import at.hannibal2.skyhanni.events.entity.EntityLeaveWorldEvent
+import at.hannibal2.skyhanni.features.rift.RiftAPI
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.RenderUtils.drawLineToEye
 import at.hannibal2.skyhanni.utils.getLorenzVec
@@ -15,6 +16,8 @@ import java.awt.Color
 
 @SkyHanniModule
 object ComboBuffTracer {
+    private val config get() = RiftAPI.config.area.mountaintop.sunGecko
+
     var armorStands = mutableListOf<EntityArmorStand>()
 
     private fun MutableList<EntityArmorStand>.addIfAbsent(entity: EntityArmorStand) {
@@ -40,9 +43,12 @@ object ComboBuffTracer {
 
     @SubscribeEvent
     fun onWorldRender(event: LorenzRenderWorldEvent) {
+        if(!isEnabled()) return
         for (armorStand in armorStands) {
             println(armorStand.name)
             event.drawLineToEye(armorStand.getLorenzVec(), Color.YELLOW, 1, true)
         }
     }
+
+    private fun isEnabled() = RiftAPI.inRift() && RiftAPI.inTimeChamber() && config.comboDisplay
 }
