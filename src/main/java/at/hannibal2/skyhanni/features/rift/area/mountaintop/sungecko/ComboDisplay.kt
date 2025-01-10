@@ -133,18 +133,18 @@ object ComboDisplay {
     @SubscribeEvent
     fun onChat(event: LorenzChatEvent) {
         val message = event.message
-        if(message.contains("ACTIVE MODIFIERS")) {
+        if (message.contains("ACTIVE MODIFIERS")) {
             sending = true
             return
         }
-        if(sending && message.contains("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")){
+        if (sending && message.contains("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")) {
             sending = false
             return
         }
-        if(sending && message.contains("§r§a")){
+        if (sending && message.contains("§r§a")) {
             for (match in modifiersRegex.findAll(message)) {
-                if(match.groupValues[1] == "Time Sliced") timeSliced = true
-                if(match.groupValues[1] == "Culmination") culmination = true
+                if (match.groupValues[1] == "Time Sliced") timeSliced = true
+                if (match.groupValues[1] == "Culmination") culmination = true
             }
         }
     }

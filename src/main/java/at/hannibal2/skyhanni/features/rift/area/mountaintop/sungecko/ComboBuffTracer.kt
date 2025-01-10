@@ -1,13 +1,18 @@
 package at.hannibal2.skyhanni.features.rift.area.mountaintop.sungecko
 
 import at.hannibal2.skyhanni.api.event.HandleEvent
+import at.hannibal2.skyhanni.events.LorenzChatEvent
 import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
 import at.hannibal2.skyhanni.events.entity.EntityCustomNameUpdateEvent
 import at.hannibal2.skyhanni.events.entity.EntityEnterWorldEvent
 import at.hannibal2.skyhanni.events.entity.EntityLeaveWorldEvent
 import at.hannibal2.skyhanni.features.rift.RiftAPI
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
+import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.RenderUtils.drawLineToEye
+import at.hannibal2.skyhanni.utils.SimpleTimeMark
+import at.hannibal2.skyhanni.utils.TimeUnit
+import at.hannibal2.skyhanni.utils.TimeUtils.format
 import at.hannibal2.skyhanni.utils.getLorenzVec
 import net.minecraft.entity.Entity
 import net.minecraft.entity.item.EntityArmorStand
@@ -39,6 +44,15 @@ object ComboBuffTracer {
     fun onEntityLeaveWorld(event: EntityLeaveWorldEvent<Entity>) {
         val entity = event.entity as? EntityArmorStand ?: return
         if(entity.name.contains("Combo Buff")) armorStands.remove(event.entity)
+    }
+
+    @SubscribeEvent
+    fun onChat(event: LorenzChatEvent) {
+        val message = event.message
+        if(message.contains("SUN GECKO DOWN!"))
+        {
+            armorStands.clear()
+        }
     }
 
     @SubscribeEvent
