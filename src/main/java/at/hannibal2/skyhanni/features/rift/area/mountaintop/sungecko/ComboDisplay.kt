@@ -81,7 +81,7 @@ object ComboDisplay {
             string = "Combos Left: §e§l${combosNeeded - currentCombos}",
             posLabel = "Combo Display"
         )
-        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold && (comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= 0.1 || config.alwaysRender) {
+        if((comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) <= config.timeLeftThreshold && (comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000) >= 0.1 || config.alwaysRender) {
             config.position2.renderString(
                 string = "${
                     getColorFromLevel(comboTimeUp.timeUntil().toInt(DurationUnit.MILLISECONDS).toDouble() / 1000).toChatFormatting()
@@ -146,10 +146,6 @@ object ComboDisplay {
                 if(match.groupValues[1] == "Time Sliced") timeSliced = true
                 if(match.groupValues[1] == "Culmination") culmination = true
             }
-        }
-        if(message.contains("SUN GECKO DOWN!"))
-        {
-            ChatUtils.chat("Sun Gecko defeated in " + (180 - timeLeftSeconds).seconds.format(biggestUnit = TimeUnit.MINUTE))
         }
     }
 
