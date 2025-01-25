@@ -1365,7 +1365,7 @@
 + Added `select near look` keybind in Graph Editor. - nea (https://github.com/hannibal002/SkyHanni/pull/2537)
 + Added checks to avoid creating bugs with the area structure in Graph Editor. - hannibal2 (https://github.com/hannibal002/SkyHanni/pull/2537)
 + Added options to the graph node list to hide nodes with certain tags. - hannibal2 (https://github.com/hannibal002/SkyHanni/pull/2537)
-+ Removed the use of `LorenzChatEvent()` for 'manually' adding data to Hoppity Chat Compact. - Daveed (https://github.com/hannibal002/SkyHanni/pull/2488)
++ Removed the use of `SkyHanniChatEvent()` for 'manually' adding data to Hoppity Chat Compact. - Daveed (https://github.com/hannibal002/SkyHanni/pull/2488)
     + Now uses `EggFoundEvent()`.
 + The Renderable Wrapped String now has an option to align text inside the wrapped string box. - Thunderblade73 (https://github.com/hannibal002/SkyHanni/pull/2372)
 + Improved handling of unknown stats for ReforgeAPI. - Thunderblade73 (https://github.com/hannibal002/SkyHanni/pull/2562)

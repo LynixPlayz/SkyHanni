@@ -4,8 +4,7 @@ import at.hannibal2.skyhanni.api.event.HandleEvent
 import at.hannibal2.skyhanni.events.ActionBarUpdateEvent
 import at.hannibal2.skyhanni.events.BossHealthChangeEvent
 import at.hannibal2.skyhanni.events.GuiRenderEvent
-import at.hannibal2.skyhanni.events.LorenzChatEvent
-import at.hannibal2.skyhanni.events.LorenzTickEvent
+import at.hannibal2.skyhanni.events.chat.SkyHanniChatEvent
 import at.hannibal2.skyhanni.events.ScoreboardUpdateEvent
 import at.hannibal2.skyhanni.events.TitleReceivedEvent
 import at.hannibal2.skyhanni.events.entity.EntityClickEvent
@@ -74,7 +73,7 @@ object ComboDisplay {
         return Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff)
     }
 
-    @SubscribeEvent
+    @HandleEvent
     fun onRenderOverlay(event: GuiRenderEvent.GuiOverlayRenderEvent) {
         if(!isEnabled() && !config.alwaysRender) return
         config.position.renderString(
@@ -130,8 +129,8 @@ object ComboDisplay {
         combosNeeded = tempCombosNeeded
     }
 
-    @SubscribeEvent
-    fun onChat(event: LorenzChatEvent) {
+    @HandleEvent
+    fun onChat(event: SkyHanniChatEvent) {
         val message = event.message
         if (message.contains("ACTIVE MODIFIERS")) {
             sending = true

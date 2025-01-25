@@ -33,7 +33,8 @@ import java.awt.Color
 import kotlin.time.Duration.Companion.milliseconds
 
 @SkyHanniModule
-object RiftWiltedBerberisHelper {
+object
+RiftWiltedBerberisHelper {
 
     private val config get() = RiftApi.config.area.dreadfarm.wiltedBerberis
     private var isOnFarmland = false

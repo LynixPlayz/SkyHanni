@@ -1,6 +1,7 @@
 package at.hannibal2.skyhanni.features.rift.area.mountaintop.sungecko
 
-import at.hannibal2.skyhanni.events.LorenzChatEvent
+import at.hannibal2.skyhanni.api.event.HandleEvent
+import at.hannibal2.skyhanni.events.chat.SkyHanniChatEvent
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.SimpleTimeMark
@@ -14,8 +15,8 @@ object SunGeckoStats {
     private var timeStarted = SimpleTimeMark.farPast()
     private var started = false;
 
-    @SubscribeEvent
-    fun onChat(event: LorenzChatEvent) {
+    @HandleEvent
+    fun onChat(event: SkyHanniChatEvent) {
         val message = event.message
         if(message.contains("ACTIVE MODIFIERS")) {
             timeStarted = SimpleTimeMark.now()
