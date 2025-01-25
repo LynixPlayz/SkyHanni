@@ -10,7 +10,7 @@ import at.hannibal2.skyhanni.events.ScoreboardUpdateEvent
 import at.hannibal2.skyhanni.events.TitleReceivedEvent
 import at.hannibal2.skyhanni.events.entity.EntityClickEvent
 import at.hannibal2.skyhanni.events.entity.EntityHealthUpdateEvent
-import at.hannibal2.skyhanni.features.rift.RiftAPI
+import at.hannibal2.skyhanni.features.rift.RiftApi
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.LorenzColor
@@ -30,7 +30,7 @@ import kotlin.time.DurationUnit
 @SkyHanniModule
 object ComboDisplay {
 
-    private val config get() = RiftAPI.config.area.mountaintop.sunGecko
+    private val config get() = RiftApi.config.area.mountaintop.sunGecko
 
     private val modifiersRegex = Regex("§a([^§]+)§r")
     private val squaresRegex = Regex("§c(.*)")
@@ -169,6 +169,6 @@ object ComboDisplay {
         combosNeeded = newCombosNeeded
     }*/
 
-    private fun isEnabled() = RiftAPI.inRift() && RiftAPI.inTimeChamber() && config.comboDisplay
+    private fun isEnabled() = RiftApi.inRift() && RiftApi.inTimeChamber() && config.comboDisplay
 
 }

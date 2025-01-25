@@ -1,12 +1,12 @@
 package at.hannibal2.skyhanni.features.rift.area.mountaintop.sungecko
 
 import at.hannibal2.skyhanni.api.event.HandleEvent
-import at.hannibal2.skyhanni.events.LorenzChatEvent
-import at.hannibal2.skyhanni.events.LorenzRenderWorldEvent
+import at.hannibal2.skyhanni.events.chat.SkyHanniChatEvent
 import at.hannibal2.skyhanni.events.entity.EntityCustomNameUpdateEvent
 import at.hannibal2.skyhanni.events.entity.EntityEnterWorldEvent
 import at.hannibal2.skyhanni.events.entity.EntityLeaveWorldEvent
-import at.hannibal2.skyhanni.features.rift.RiftAPI
+import at.hannibal2.skyhanni.events.minecraft.SkyHanniRenderWorldEvent
+import at.hannibal2.skyhanni.features.rift.RiftApi
 import at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule
 import at.hannibal2.skyhanni.utils.ChatUtils
 import at.hannibal2.skyhanni.utils.RenderUtils.drawLineToEye
@@ -21,7 +21,7 @@ import java.awt.Color
 
 @SkyHanniModule
 object ComboBuffTracer {
-    private val config get() = RiftAPI.config.area.mountaintop.sunGecko
+    private val config get() = RiftApi.config.area.mountaintop.sunGecko
 
     var armorStands = mutableListOf<EntityArmorStand>()
 
@@ -46,8 +46,8 @@ object ComboBuffTracer {
         if(entity.name.contains("Combo Buff")) armorStands.remove(event.entity)
     }
 
-    @SubscribeEvent
-    fun onChat(event: LorenzChatEvent) {
+    @HandleEvent
+    fun onChat(event: SkyHanniChatEvent) {
         val message = event.message
         if(message.contains("SUN GECKO DOWN!"))
         {
@@ -55,13 +55,13 @@ object ComboBuffTracer {
         }
     }
 
-    @SubscribeEvent
-    fun onWorldRender(event: LorenzRenderWorldEvent) {
+    @HandleEvent
+    fun onWorldRender(event: SkyHanniRenderWorldEvent) {
         if(!isEnabled()) return
         for (armorStand in armorStands) {
             event.drawLineToEye(armorStand.getLorenzVec(), Color.YELLOW, 1, true)
         }
     }
 
-    private fun isEnabled() = RiftAPI.inRift() && RiftAPI.inTimeChamber() && config.comboDisplay
+    private fun isEnabled() = RiftApi.inRift() && RiftApi.inTimeChamber() && config.comboDisplay
 }
